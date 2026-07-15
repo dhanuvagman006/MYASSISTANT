@@ -1,8 +1,30 @@
-.gradle/
+# Flutter/Dart
+.dart_tool/
+.packages
 build/
-local.properties
-*.keystore
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+.metadata
+
+# IDE
 .idea/
+.vscode/
 *.iml
-node_modules/
+
+# Android
+android/local.properties
+android/.gradle/
+android/app/google-services.json
+*.keystore
+*.jks
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/flutter_export_environment.sh
+ios/Runner/GoogleService-Info.plist
+
+# Secrets
 .env
