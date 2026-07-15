@@ -5,13 +5,12 @@ Scope per Project Scope & Delivery Document, 9 July 2026.
 
 ## Structure
 - `app/` — Android app (min SDK 29 / Android 10+)
-- `backend/` — Node.js API server (deploy to India region)
+(Backend lives in a separate repository)
 
 ## Getting started
 1. Open the root folder in **Android Studio** (Ladybug or newer). Gradle sync will
    download dependencies and generate the wrapper.
 2. Generate launcher icons: right-click `res` → New → Image Asset.
-3. Backend: `cd backend && npm install && ANTHROPIC_API_KEY=... node server.js`
 4. Point the app at your server: edit `BASE_URL` in `app/build.gradle.kts`
    (use `http://10.0.2.2:3000` for the emulator against a local backend —
    requires `android:usesCleartextTraffic="true"` for local testing only).
