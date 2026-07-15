@@ -40,7 +40,8 @@ class MainActivity : ComponentActivity() {
                 val session by authManager.sessionFlow.collectAsState(initial = null)
                 var justSignedIn by remember { mutableStateOf(false) }
 
-                if (session == null && !justSignedIn) {
+                // Sign-in gate disabled until F1 OAuth setup is done (AUTH_ENABLED in build.gradle.kts)
+                if (BuildConfig.AUTH_ENABLED && session == null && !justSignedIn) {
                     SignInScreen(authManager) { justSignedIn = true }
                 } else {
                     var config by remember { mutableStateOf(RemoteConfig()) }

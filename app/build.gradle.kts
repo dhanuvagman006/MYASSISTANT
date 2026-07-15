@@ -22,6 +22,9 @@ android {
         // From Google Cloud Console → Credentials → OAuth 2.0 Client IDs → *Web* client.
         // (Yes, the WEB client ID — that's what Credential Manager and the backend both use.)
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"YOUR_WEB_CLIENT_ID.apps.googleusercontent.com\"")
+
+        // Flip to true once the Google Cloud OAuth clients are created (F1).
+        buildConfigField("boolean", "AUTH_ENABLED", "false")
     }
 
     buildTypes {
