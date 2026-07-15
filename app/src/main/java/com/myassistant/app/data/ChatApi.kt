@@ -33,6 +33,12 @@ object ChatApi {
         val body = json.encodeToString(ChatRequest(history)).toRequestBody(jsonMedia)
         val req = Request.Builder()
             .url("${BuildConfig.BASE_URL}/chat")
+            .apply {
+                // Google ID token → backend verifies it and knows who's calling
+                com.myassistant.app.auth.AuthManager.currentIdToken?.let {
+                    header("Authorization", "Bearer $it")
+                }
+            }
             .post(body)
             .build()
         client.newCall(req).execute().use { resp ->

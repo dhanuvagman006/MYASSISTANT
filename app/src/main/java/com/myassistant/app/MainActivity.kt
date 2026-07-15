@@ -16,6 +16,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.myassistant.app.auth.AuthManager
+import com.myassistant.app.ui.signin.SignInScreen
 import com.myassistant.app.data.ChatMessage
 import com.myassistant.app.ui.chat.ChatViewModel
 import com.myassistant.app.ui.theme.Marigold
@@ -31,12 +33,20 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         updateManager = UpdateManager(this)
+        val authManager = AuthManager(applicationContext)
 
         setContent {
             MyAssistantTheme {
-                var config by remember { mutableStateOf(RemoteConfig()) }
-                LaunchedEffect(Unit) { config = ConfigRepository.refresh() }
-                AppScaffold(config, updateManager)
+                val session by authManager.sessionFlow.collectAsState(initial = null)
+                var justSignedIn by remember { mutableStateOf(false) }
+
+                if (session == null && !justSignedIn) {
+                    SignInScreen(authManager) { justSignedIn = true }
+                } else {
+                    var config by remember { mutableStateOf(RemoteConfig()) }
+                    LaunchedEffect(Unit) { config = ConfigRepository.refresh() }
+                    AppScaffold(config, updateManager)
+                }
             }
         }
     }

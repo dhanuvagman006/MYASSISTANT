@@ -18,6 +18,10 @@ android {
 
         // Backend base URL — point to your India-hosted server later.
         buildConfigField("String", "BASE_URL", "\"https://api.myassistant.example.com\"")
+
+        // From Google Cloud Console → Credentials → OAuth 2.0 Client IDs → *Web* client.
+        // (Yes, the WEB client ID — that's what Credential Manager and the backend both use.)
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"YOUR_WEB_CLIENT_ID.apps.googleusercontent.com\"")
     }
 
     buildTypes {
@@ -64,4 +68,9 @@ dependencies {
 
     // DataStore for cached remote config / feature flags
     implementation("androidx.datastore:datastore-preferences:1.1.1")
+
+    // Google Sign-In (F1) via Credential Manager — the modern, non-deprecated API
+    implementation("androidx.credentials:credentials:1.3.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 }
