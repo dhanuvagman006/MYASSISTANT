@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
 
 /// Screen 01 — Voice Home (A1–A4, M1).
 /// The bloom orb with four states: Idle / Listening / Thinking / Speaking.
 /// Voice capture wires in later; tapping the orb cycles states for now.
-/// No mock data: greeting is time-based, transcript appears only when real.
+/// Theme-aware (light + dark), balanced layout, haptic feedback.
 enum OrbState { idle, listening, thinking, speaking }
 
 class VoiceHomeScreen extends StatefulWidget {
@@ -43,62 +44,67 @@ class _VoiceHomeScreenState extends State<VoiceHomeScreen>
         OrbState.speaking => 'Speaking — tap to interrupt',
       };
 
-  @override
-  Widget build(BuildContext context) {
-    final muted = AppColors.ink.withValues(alpha: 0.55);
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          const SizedBox(height: 8),
-          Text(_greeting, style: Theme.of(context).textTheme.headlineMedium),
-          const SizedBox(height: 6),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 250),
-            child: Text(_caption,
-                key: ValueKey(_state), style: TextStyle(color: muted)),
-          ),
-          const Spacer(),
-          _BloomOrb(
-            state: _state,
-            pulse: _pulse,
-            onTap: () => setState(() {
-              _state =
-                  OrbState.values[(_state.index + 1) % OrbState.values.length];
-            }),
-          ),
-          const Spacer(),
-          Text('Or type your question instead',
-              style: TextStyle(fontSize: 13, color: muted)),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            alignment: WrapAlignment.center,
-            children: [
-              _Suggestion('💬 Ask anything', onTap: widget.onOpenChat),
-              _Suggestion('🌐 Translate', onTap: widget.onOpenChat),
-              _Suggestion('✍️ Help me write', onTap: widget.onOpenChat),
-            ],
-          ),
-          const SizedBox(height: 8),
-        ],
-      ),
-    );
+  void _tapOrb() {
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _state = OrbState.values[(_state.index + 1) % OrbState.values.length];
+    });
   }
-}
 
-class _Suggestion extends StatelessWidget {
-  final String label;
-  final VoidCallback? onTap;
-  const _Suggestion(this.label, {this.onTap});
+  void _tapChip() {
+    HapticFeedback.selectionClick();
+    widget.onOpenChat?.call();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return ActionChip(
-      label: Text(label),
-      onPressed: onTap,
-      backgroundColor: Colors.white,
+    final cs = Theme.of(context).colorScheme;
+    final muted = cs.onSurface.withValues(alpha: 0.60);
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          children: [
+            const SizedBox(height: 20),
+            Text(_greeting, style: Theme.of(context).textTheme.headlineMedium),
+            const SizedBox(height: 8),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              child: Text(
+                _caption,
+                key: ValueKey(_state),
+                style: TextStyle(fontSize: 15, color: muted),
+              ),
+            ),
+
+            // Orb owns the middle of the screen, always centred
+            Expanded(
+              child: Center(
+                child: _BloomOrb(state: _state, pulse: _pulse, onTap: _tapOrb),
+              ),
+            ),
+
+            Text('Or type your question instead',
+                style: TextStyle(fontSize: 13, color: muted)),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                for (final s in const [
+                  '💬 Ask anything',
+                  '🌐 Translate',
+                  '✍️ Help me write',
+                ])
+                  ActionChip(label: Text(s), onPressed: _tapChip),
+              ],
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -115,54 +121,69 @@ class _BloomOrb extends StatelessWidget {
   Widget build(BuildContext context) {
     final animate = state == OrbState.listening || state == OrbState.speaking;
 
-    return AnimatedBuilder(
-      animation: pulse,
-      builder: (context, _) {
-        final scale = animate ? 1 + (pulse.value * 0.08) : 1.0;
-        return Stack(
-          alignment: Alignment.center,
-          children: [
-            Transform.scale(
-              scale: scale,
-              child: _ring(250, AppColors.marigold.withValues(alpha: 0.35)),
-            ),
-            _ring(205, AppColors.marigold.withValues(alpha: 0.7)),
-            Transform.scale(
-              scale: scale,
-              child: GestureDetector(
-                onTap: onTap,
-                child: Container(
-                  width: 160,
-                  height: 160,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const RadialGradient(
-                      center: Alignment(-0.3, -0.4),
-                      colors: [AppColors.peacockLight, AppColors.peacockDeep],
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.peacock.withValues(alpha: 0.35),
-                        blurRadius: 40,
-                        offset: const Offset(0, 14),
+    // Scale the whole orb assembly to the space available so rings
+    // never crowd small screens or float tiny on large ones.
+    return LayoutBuilder(
+      builder: (context, box) {
+        final size = box.biggest.shortestSide.clamp(220.0, 320.0);
+        return AnimatedBuilder(
+          animation: pulse,
+          builder: (context, _) {
+            final scale = animate ? 1 + (pulse.value * 0.07) : 1.0;
+            return SizedBox(
+              width: size,
+              height: size,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Transform.scale(
+                    scale: scale,
+                    child: _ring(
+                        size, AppColors.marigold.withValues(alpha: 0.35)),
+                  ),
+                  _ring(size * 0.82, AppColors.marigold.withValues(alpha: 0.7)),
+                  Transform.scale(
+                    scale: scale,
+                    child: GestureDetector(
+                      onTap: onTap,
+                      child: Container(
+                        width: size * 0.62,
+                        height: size * 0.62,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: const RadialGradient(
+                            center: Alignment(-0.3, -0.4),
+                            colors: [
+                              AppColors.peacockLight,
+                              AppColors.peacockDeep
+                            ],
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.peacock.withValues(alpha: 0.45),
+                              blurRadius: 48,
+                              offset: const Offset(0, 12),
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          switch (state) {
+                            OrbState.idle => Icons.mic_none_rounded,
+                            OrbState.thinking => Icons.more_horiz_rounded,
+                            _ => Icons.graphic_eq_rounded,
+                          },
+                          size: size * 0.20,
+                          color: state == OrbState.speaking
+                              ? AppColors.marigold
+                              : Colors.white,
+                        ),
                       ),
-                    ],
+                    ),
                   ),
-                  child: Icon(
-                    switch (state) {
-                      OrbState.idle => Icons.mic_none_rounded,
-                      OrbState.thinking => Icons.more_horiz_rounded,
-                      _ => Icons.graphic_eq_rounded,
-                    },
-                    size: 54,
-                    color: state == OrbState.speaking
-                        ? AppColors.marigold
-                        : Colors.white,
-                  ),
-                ),
+                ],
               ),
-            ),
-          ],
+            );
+          },
         );
       },
     );

@@ -9,7 +9,8 @@ class PrivacyScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final muted = AppColors.ink.withValues(alpha: 0.55);
+    final muted =
+        Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.60);
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
@@ -104,7 +105,7 @@ class _Section extends StatelessWidget {
               fontSize: 11.5,
               fontWeight: FontWeight.w700,
               letterSpacing: 1.1,
-              color: AppColors.ink.withValues(alpha: 0.45),
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.45),
             ),
           ),
         ),
@@ -131,7 +132,11 @@ class _EmptyRow extends StatelessWidget {
           Expanded(
             child: Text(text,
                 style: TextStyle(
-                    color: AppColors.ink.withValues(alpha: 0.6), height: 1.5)),
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.6),
+                    height: 1.5)),
           ),
         ],
       ),
@@ -147,17 +152,24 @@ class _ServiceRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: Icon(icon, color: AppColors.peacockDeep),
+      leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
       title: Text(name, style: const TextStyle(fontWeight: FontWeight.w500)),
       trailing: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          color: AppColors.mist,
+          color: Theme.of(context)
+              .colorScheme
+              .onSurface
+              .withValues(alpha: 0.06),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Text('Not connected',
             style: TextStyle(
-                fontSize: 12, color: AppColors.ink.withValues(alpha: 0.5))),
+                fontSize: 12,
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withValues(alpha: 0.5))),
       ),
     );
   }

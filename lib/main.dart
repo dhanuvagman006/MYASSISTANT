@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'models/remote_config.dart';
 import 'screens/calls_screen.dart';
@@ -117,7 +118,10 @@ class _HomeShellState extends State<HomeShell> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
-        onDestinationSelected: (i) => setState(() => _tab = i),
+        onDestinationSelected: (i) {
+          HapticFeedback.selectionClick();
+          setState(() => _tab = i);
+        },
         destinations: const [
           NavigationDestination(
               icon: Icon(Icons.adjust_rounded), label: 'Assistant'),
@@ -162,9 +166,17 @@ class _TodayHubState extends State<TodayHub> {
           child: SegmentedButton<int>(
             style: SegmentedButton.styleFrom(
               selectedBackgroundColor:
-                  AppColors.peacock.withValues(alpha: 0.14),
-              selectedForegroundColor: AppColors.peacockDeep,
-              side: BorderSide(color: AppColors.ink.withValues(alpha: 0.12)),
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.14),
+              selectedForegroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Theme.of(context)
+                  .colorScheme
+                  .onSurface
+                  .withValues(alpha: 0.7),
+              side: BorderSide(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurface
+                      .withValues(alpha: 0.12)),
             ),
             segments: const [
               ButtonSegment(value: 0, label: Text('Daily')),
@@ -173,7 +185,10 @@ class _TodayHubState extends State<TodayHub> {
               ButtonSegment(value: 3, label: Text('Docs')),
             ],
             selected: {_segment},
-            onSelectionChanged: (s) => setState(() => _segment = s.first),
+            onSelectionChanged: (s) {
+              HapticFeedback.selectionClick();
+              setState(() => _segment = s.first);
+            },
           ),
         ),
         Expanded(child: pages[_segment]),

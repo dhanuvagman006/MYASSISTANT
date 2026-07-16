@@ -19,7 +19,8 @@ class ComingSoon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final muted = AppColors.ink.withValues(alpha: 0.55);
+    final muted =
+        Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.60);
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(32),
@@ -60,10 +61,7 @@ class ComingSoon extends StatelessWidget {
                 alignment: WrapAlignment.center,
                 children: [
                   for (final h in highlights)
-                    Chip(
-                      label: Text(h),
-                      backgroundColor: Colors.white,
-                    ),
+                    Chip(label: Text(h)),
                 ],
               ),
             ],

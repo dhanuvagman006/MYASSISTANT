@@ -118,12 +118,15 @@ class AppTheme {
   }
 
   static ThemeData dark() {
+    const surface = Color(0xFF13282A); // card surfaces on Ink
+    const surfaceHigh = Color(0xFF1A3335);
     final scheme = ColorScheme.fromSeed(
       seedColor: AppColors.peacock,
       primary: AppColors.peacockLight,
       onPrimary: Colors.white,
       secondary: AppColors.marigold,
-      surface: const Color(0xFF122726),
+      onSecondary: AppColors.ink,
+      surface: surface,
       onSurface: AppColors.mist,
       brightness: Brightness.dark,
     );
@@ -135,17 +138,72 @@ class AppTheme {
       appBarTheme: AppBarTheme(
         backgroundColor: AppColors.ink,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: false,
         titleTextStyle: GoogleFonts.sora(
           fontSize: 22,
           fontWeight: FontWeight.w700,
           color: AppColors.mist,
         ),
+        iconTheme: const IconThemeData(color: AppColors.mist),
       ),
       cardTheme: CardThemeData(
         elevation: 0,
-        color: const Color(0xFF122726),
+        color: surface,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: AppColors.peacock,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          textStyle: GoogleFonts.inter(fontWeight: FontWeight.w600),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.mist,
+          side: BorderSide(color: AppColors.mist.withValues(alpha: 0.18)),
+          textStyle: GoogleFonts.inter(fontWeight: FontWeight.w500),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        ),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: surfaceHigh,
+        side: BorderSide(color: AppColors.mist.withValues(alpha: 0.10)),
+        labelStyle: GoogleFonts.inter(fontSize: 13, color: AppColors.mist),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: const Color(0xFF0B1516),
+        indicatorColor: AppColors.peacockLight.withValues(alpha: 0.20),
+        iconTheme: WidgetStateProperty.resolveWith(
+          (states) => IconThemeData(
+            color: states.contains(WidgetState.selected)
+                ? AppColors.peacockLight
+                : AppColors.mist.withValues(alpha: 0.55),
+          ),
+        ),
+        labelTextStyle: WidgetStateProperty.all(
+          GoogleFonts.inter(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w500,
+              color: AppColors.mist),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: surfaceHigh,
+        hintStyle:
+            GoogleFonts.inter(color: AppColors.mist.withValues(alpha: 0.4)),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(28),
+          borderSide: BorderSide.none,
+        ),
       ),
     );
   }

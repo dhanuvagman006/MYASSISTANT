@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/chat_message.dart';
 import '../services/api_service.dart';
@@ -23,6 +24,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _send([String? preset]) async {
     final text = (preset ?? _controller.text).trim();
     if (text.isEmpty || _thinking) return;
+    HapticFeedback.lightImpact();
 
     setState(() {
       _messages.add(ChatMessage(role: 'user', content: text));
@@ -95,7 +97,10 @@ class _ChatScreenState extends State<ChatScreen> {
                     decoration: InputDecoration(
                       hintText: 'Ask anything — any language…',
                       suffixIcon: Icon(Icons.mic_none_rounded,
-                          color: AppColors.ink.withValues(alpha: 0.35)),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withValues(alpha: 0.35)),
                     ),
                   ),
                 ),
@@ -128,7 +133,8 @@ class _Welcome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final muted = AppColors.ink.withValues(alpha: 0.55);
+    final muted =
+        Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.60);
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(32),
@@ -169,8 +175,10 @@ class _Welcome extends StatelessWidget {
                 ])
                   ActionChip(
                     label: Text(s),
-                    backgroundColor: Colors.white,
-                    onPressed: () => onSuggestion(s),
+                    onPressed: () {
+                      HapticFeedback.selectionClick();
+                      onSuggestion(s);
+                    },
                   ),
               ],
             ),
@@ -192,7 +200,7 @@ class _TypingIndicator extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 6),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(18),
         ),
         child: SizedBox(
@@ -224,7 +232,9 @@ class _Bubble extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 5),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: isUser ? AppColors.peacockDeep : Colors.white,
+          color: isUser
+              ? AppColors.peacockDeep
+              : Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(18),
             topRight: const Radius.circular(18),
@@ -235,7 +245,7 @@ class _Bubble extends StatelessWidget {
         child: Text(
           msg.content,
           style: TextStyle(
-            color: isUser ? Colors.white : AppColors.ink,
+            color: isUser ? Colors.white : Theme.of(context).colorScheme.onSurface,
             height: 1.45,
           ),
         ),
