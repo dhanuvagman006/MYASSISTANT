@@ -67,3 +67,28 @@ Separate repo: `MYASSISTANT_BACKEND`. Endpoints used here: `GET /config`, `POST 
 ## iOS requirements
 A Mac with Xcode is required to build/run iOS, plus an Apple Developer
 account ($99/year) to ship. No framework avoids this.
+
+## Voice & the "Hey Hari" wake word
+The Voice Home screen listens for **"Hey Hari"** while it is open, then
+captures your question, answers via the backend, and speaks the reply
+(`speech_to_text` + `flutter_tts`).
+
+One-time manifest setup (the `android/` folder is generated locally, so
+add this yourself) — in `android/app/src/main/AndroidManifest.xml`:
+
+```xml
+<manifest ...>
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService"/>
+        </intent>
+    </queries>
+    <application ...>
+```
+
+Limits (by design of Android): the wake word works while the app is in the
+foreground. Detection with the screen off / app closed requires an
+on-device wake-word engine (e.g. Porcupine with a custom "Hey Hari" model)
+running in a foreground service — planned as a follow-up.

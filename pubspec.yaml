@@ -17,6 +17,10 @@ dependencies:
   # Brand typography — Sora (headlines) + Inter (body) per UI Design V1.0
   google_fonts: ^6.2.1
 
+  # Voice — wake word watch + speech capture + spoken replies (A2, M1)
+  speech_to_text: ^7.0.0
+  flutter_tts: ^4.1.0
+
   # Local storage for session + cached config
   shared_preferences: ^2.3.2
 
