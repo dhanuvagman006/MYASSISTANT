@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:porcupine_flutter/porcupine_manager.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/chat_message.dart';
 import 'api_service.dart';
@@ -48,9 +49,18 @@ class AssistantController extends ChangeNotifier {
   static const _accessKey = String.fromEnvironment('PICOVOICE_ACCESS_KEY');
   static const _modelAsset = 'assets/wake/hey_hari_android.ppn';
 
+  static const _wakePrefKey = 'wake_word_enabled';
+
   Future<void> init() async {
     if (_initialized) return;
     _initialized = true;
+
+    // Respect the user's saved choice — the mic and the foreground
+    // service never start if they switched the wake word off.
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      wakeEnabled = prefs.getBool(_wakePrefKey) ?? true;
+    } catch (_) {}
 
     micReady = await _voice.init();
     await _initPorcupine();
@@ -103,6 +113,10 @@ class AssistantController extends ChangeNotifier {
   Future<void> setWakeEnabled(bool v) async {
     wakeEnabled = v;
     notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_wakePrefKey, v);
+    } catch (_) {}
     if (v) {
       await _startWake();
     } else {

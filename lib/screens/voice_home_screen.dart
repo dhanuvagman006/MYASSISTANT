@@ -139,9 +139,11 @@ class _VoiceHomeScreenState extends State<VoiceHomeScreen>
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  a.onDeviceWake
-                      ? 'On-device wake word · works with screen off'
-                      : 'Basic wake word · app must be open',
+                  a.wakeEnabled
+                      ? (a.onDeviceWake
+                          ? 'On-device wake word · works with screen off'
+                          : 'Basic wake word · app must be open')
+                      : 'Wake word off · microphone released, saves battery',
                   style: TextStyle(fontSize: 11.5, color: muted),
                 ),
                 const SizedBox(height: 14),
