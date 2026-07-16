@@ -53,7 +53,7 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      const VoiceHomeScreen(),
+      VoiceHomeScreen(onOpenChat: () => setState(() => _tab = 1)),
       const ChatScreen(),
       const TodayHub(),
       const CallsScreen(),
@@ -62,20 +62,54 @@ class _HomeShellState extends State<HomeShell> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('MyAssistant',
-            style: TextStyle(fontWeight: FontWeight.bold)),
-        actions: [UpdateButton(config: _config)],
+        title: Row(
+          children: [
+            // Brand mark — marigold ring around a peacock dot
+            Container(
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.marigold, width: 2.5),
+              ),
+              child: Center(
+                child: Container(
+                  width: 9,
+                  height: 9,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.peacock,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Text('MyAssistant'),
+          ],
+        ),
+        actions: [UpdateButton(config: _config), const SizedBox(width: 8)],
       ),
       body: Column(
         children: [
           // Server-pushed announcement — appears with no app release
           if (_config.announcement != null)
-            Card(
-              margin: const EdgeInsets.all(12),
-              color: AppColors.marigold.withValues(alpha: 0.15),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Text(_config.announcement!),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.marigold.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.campaign_outlined,
+                        color: Color(0xFFB27107), size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(child: Text(_config.announcement!)),
+                  ],
+                ),
               ),
             ),
           Expanded(child: pages[_tab]),
@@ -85,19 +119,23 @@ class _HomeShellState extends State<HomeShell> {
         selectedIndex: _tab,
         onDestinationSelected: (i) => setState(() => _tab = i),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.adjust), label: 'Assistant'),
-          NavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: 'Chat'),
-          NavigationDestination(icon: Icon(Icons.wb_sunny_outlined), label: 'Today'),
-          NavigationDestination(icon: Icon(Icons.call), label: 'Calls'),
-          NavigationDestination(icon: Icon(Icons.person_outline), label: 'You'),
+          NavigationDestination(
+              icon: Icon(Icons.adjust_rounded), label: 'Assistant'),
+          NavigationDestination(
+              icon: Icon(Icons.chat_bubble_outline_rounded), label: 'Chat'),
+          NavigationDestination(
+              icon: Icon(Icons.wb_sunny_outlined), label: 'Today'),
+          NavigationDestination(
+              icon: Icon(Icons.call_outlined), label: 'Calls'),
+          NavigationDestination(
+              icon: Icon(Icons.person_outline_rounded), label: 'You'),
         ],
       ),
     );
   }
 }
 
-/// The designs show Daily, Inbox and Smart Home all under the sun tab —
-/// so it's a hub with segments.
+/// Daily, Inbox, Home and Docs live under the sun tab as a hub.
 class TodayHub extends StatefulWidget {
   const TodayHub({super.key});
 
@@ -110,13 +148,24 @@ class _TodayHubState extends State<TodayHub> {
 
   @override
   Widget build(BuildContext context) {
-    const pages = [DailyScreen(), InboxScreen(), SmartHomeScreen(), DocumentsScreen()];
+    const pages = [
+      DailyScreen(),
+      InboxScreen(),
+      SmartHomeScreen(),
+      DocumentsScreen()
+    ];
 
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: SegmentedButton<int>(
+            style: SegmentedButton.styleFrom(
+              selectedBackgroundColor:
+                  AppColors.peacock.withValues(alpha: 0.14),
+              selectedForegroundColor: AppColors.peacockDeep,
+              side: BorderSide(color: AppColors.ink.withValues(alpha: 0.12)),
+            ),
             segments: const [
               ButtonSegment(value: 0, label: Text('Daily')),
               ButtonSegment(value: 1, label: Text('Inbox')),

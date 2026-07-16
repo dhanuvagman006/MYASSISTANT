@@ -14,6 +14,9 @@ dependencies:
   # Networking — talks to the backend only; AI keys never live in the app
   http: ^1.2.2
 
+  # Brand typography — Sora (headlines) + Inter (body) per UI Design V1.0
+  google_fonts: ^6.2.1
+
   # Local storage for session + cached config
   shared_preferences: ^2.3.2
 
@@ -29,6 +32,17 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.1
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/icon/icon.png
+  adaptive_icon_background: "#0E1B1D"
+  adaptive_icon_foreground: assets/icon/icon_fg.png
 
 flutter:
   uses-material-design: true
+
+  assets:
+    - assets/icon/

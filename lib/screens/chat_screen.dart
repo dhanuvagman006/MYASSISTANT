@@ -20,8 +20,8 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _thinking = false;
   String? _error;
 
-  Future<void> _send() async {
-    final text = _controller.text.trim();
+  Future<void> _send([String? preset]) async {
+    final text = (preset ?? _controller.text).trim();
     if (text.isEmpty || _thinking) return;
 
     setState(() {
@@ -30,12 +30,15 @@ class _ChatScreenState extends State<ChatScreen> {
       _thinking = true;
       _error = null;
     });
+    _scrollToBottom();
 
     try {
       final reply = await ApiService.sendChat(_messages);
-      setState(() => _messages.add(ChatMessage(role: 'assistant', content: reply)));
+      setState(
+          () => _messages.add(ChatMessage(role: 'assistant', content: reply)));
     } catch (_) {
-      setState(() => _error = "Couldn't reach the assistant. Check your connection.");
+      setState(
+          () => _error = "Couldn't reach the assistant. Check your connection.");
     } finally {
       setState(() => _thinking = false);
       _scrollToBottom();
@@ -56,55 +59,152 @@ class _ChatScreenState extends State<ChatScreen> {
     return Column(
       children: [
         Expanded(
-          child: ListView.builder(
-            controller: _scroll,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            itemCount: _messages.length + (_thinking ? 1 : 0) + (_error != null ? 1 : 0),
-            itemBuilder: (context, i) {
-              if (i < _messages.length) return _Bubble(_messages[i]);
-              if (_thinking && i == _messages.length) {
-                return const Padding(
-                  padding: EdgeInsets.all(8),
-                  child: Text('Thinking…'),
-                );
-              }
-              return Padding(
-                padding: const EdgeInsets.all(8),
-                child: Text(_error!, style: const TextStyle(color: AppColors.danger)),
-              );
-            },
-          ),
+          child: _messages.isEmpty && !_thinking
+              ? _Welcome(onSuggestion: _send)
+              : ListView.builder(
+                  controller: _scroll,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  itemCount: _messages.length +
+                      (_thinking ? 1 : 0) +
+                      (_error != null ? 1 : 0),
+                  itemBuilder: (context, i) {
+                    if (i < _messages.length) return _Bubble(_messages[i]);
+                    if (_thinking && i == _messages.length) {
+                      return const _TypingIndicator();
+                    }
+                    return Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Text(_error!,
+                          style: const TextStyle(color: AppColors.danger)),
+                    );
+                  },
+                ),
         ),
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _controller,
-                  onSubmitted: (_) => _send(),
-                  decoration: InputDecoration(
-                    hintText: 'Ask anything…',
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
-                      borderSide: BorderSide.none,
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    onSubmitted: (_) => _send(),
+                    textInputAction: TextInputAction.send,
+                    decoration: InputDecoration(
+                      hintText: 'Ask anything — any language…',
+                      suffixIcon: Icon(Icons.mic_none_rounded,
+                          color: AppColors.ink.withValues(alpha: 0.35)),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              FloatingActionButton(
-                onPressed: _send,
-                backgroundColor: AppColors.marigold,
-                elevation: 0,
-                child: const Icon(Icons.send, color: Colors.white),
-              ),
-            ],
+                const SizedBox(width: 10),
+                Material(
+                  color: AppColors.marigold,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: _send,
+                    child: const Padding(
+                      padding: EdgeInsets.all(14),
+                      child: Icon(Icons.arrow_upward_rounded,
+                          color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ],
+    );
+  }
+}
+
+class _Welcome extends StatelessWidget {
+  final void Function(String) onSuggestion;
+  const _Welcome({required this.onSuggestion});
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = AppColors.ink.withValues(alpha: 0.55);
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  center: Alignment(-0.3, -0.4),
+                  colors: [AppColors.peacockLight, AppColors.peacockDeep],
+                ),
+              ),
+              child: const Icon(Icons.chat_bubble_outline_rounded,
+                  color: Colors.white, size: 30),
+            ),
+            const SizedBox(height: 20),
+            Text('What can I help with?',
+                style: Theme.of(context).textTheme.headlineSmall),
+            const SizedBox(height: 8),
+            Text(
+              'Questions, writing help, translations — in English, हिन्दी, മലയാളം and 50+ languages.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: muted, height: 1.5),
+            ),
+            const SizedBox(height: 24),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                for (final s in const [
+                  'Draft a polite email',
+                  'Translate to Hindi',
+                  'Explain simply',
+                ])
+                  ActionChip(
+                    label: Text(s),
+                    backgroundColor: Colors.white,
+                    onPressed: () => onSuggestion(s),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TypingIndicator extends StatelessWidget {
+  const _TypingIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: SizedBox(
+          width: 32,
+          child: LinearProgressIndicator(
+            minHeight: 4,
+            borderRadius: BorderRadius.circular(2),
+            color: AppColors.peacock,
+            backgroundColor: AppColors.peacock.withValues(alpha: 0.15),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -119,16 +219,25 @@ class _Bubble extends StatelessWidget {
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 300),
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        padding: const EdgeInsets.all(12),
+        constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.78),
+        margin: const EdgeInsets.symmetric(vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: isUser ? AppColors.peacockDeep : Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(18),
+            topRight: const Radius.circular(18),
+            bottomLeft: Radius.circular(isUser ? 18 : 6),
+            bottomRight: Radius.circular(isUser ? 6 : 18),
+          ),
         ),
         child: Text(
           msg.content,
-          style: TextStyle(color: isUser ? Colors.white : AppColors.ink),
+          style: TextStyle(
+            color: isUser ? Colors.white : AppColors.ink,
+            height: 1.45,
+          ),
         ),
       ),
     );
