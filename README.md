@@ -88,7 +88,56 @@ add this yourself) — in `android/app/src/main/AndroidManifest.xml`:
     <application ...>
 ```
 
-Limits (by design of Android): the wake word works while the app is in the
-foreground. Detection with the screen off / app closed requires an
-on-device wake-word engine (e.g. Porcupine with a custom "Hey Hari" model)
-running in a foreground service — planned as a follow-up.
+## Screen-off wake word (Porcupine)
+Two engines are built in:
+- **On-device (Porcupine)** — instant (~100 ms) detection that keeps working
+  with the screen off, held alive by a microphone foreground service.
+- **Fallback (Android recognizer)** — used automatically when Porcupine
+  isn't configured; foreground only.
+
+### One-time Porcupine setup (free)
+1. Create a free account at https://console.picovoice.ai and copy your
+   **AccessKey**.
+2. In the console: *Porcupine → Create wake word* → type **Hey Hari** →
+   train for **Android (arm)** → download the `.ppn`.
+3. Save it in this repo as `assets/wake/hey_hari_android.ppn`.
+4. Run with the key:
+   ```bash
+   flutter run \
+     --dart-define=BASE_URL=https://your-backend \
+     --dart-define=PICOVOICE_ACCESS_KEY=YOUR_KEY
+   ```
+
+### Manifest (android/app/src/main/AndroidManifest.xml)
+Inside `<manifest>`:
+```xml
+<uses-permission android:name="android.permission.RECORD_AUDIO"/>
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
+<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+<uses-permission android:name="android.permission.WAKE_LOCK"/>
+<queries>
+    <intent>
+        <action android:name="android.speech.RecognitionService"/>
+    </intent>
+</queries>
+```
+Inside `<application>`:
+```xml
+<service
+    android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
+    android:foregroundServiceType="microphone"
+    android:exported="false"/>
+```
+
+### Samsung battery settings (important)
+Settings → Apps → MyAssistant → Battery → **Unrestricted**, or One UI will
+kill the listener minutes after the screen turns off.
+
+### Latency notes
+- Porcupine fires instantly; the moment it does, the app pings the backend
+  (`/health`) so DNS/TLS — and a sleeping free-tier host — are warm before
+  you finish asking.
+- Speech capture ends ~2.2 s after you stop talking.
+- On Render's free tier, cold starts add 30–60 s after idle; use a paid
+  instance or an uptime pinger for consistently fast answers.

@@ -1,17 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../models/chat_message.dart';
-import '../services/api_service.dart';
-import '../services/voice_service.dart';
+import '../services/assistant_controller.dart';
 import '../theme/app_theme.dart';
 
-/// Screen 01 — Voice Home (A1–A4, M1), now live.
-///
-/// Say "Hey Hari" (while this screen is open) or tap the orb, ask your
-/// question, and the assistant answers on screen and out loud.
-enum OrbState { idle, listening, thinking, speaking }
-
+/// Screen 01 — Voice Home (A1–A4, M1).
+/// A thin view over AssistantController: the wake/answer loop keeps
+/// running even when this screen isn't visible or the display is off.
 class VoiceHomeScreen extends StatefulWidget {
   final VoidCallback? onOpenChat;
   const VoiceHomeScreen({super.key, this.onOpenChat});
@@ -22,15 +17,7 @@ class VoiceHomeScreen extends StatefulWidget {
 
 class _VoiceHomeScreenState extends State<VoiceHomeScreen>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
-  final _voice = VoiceService.instance;
-  final _history = <ChatMessage>[];
-
-  OrbState _state = OrbState.idle;
-  bool _wakeEnabled = true;
-  bool _micReady = false;
-  String _partial = '';
-  String? _lastHeard;
-  String? _lastReply;
+  final _assistant = AssistantController.instance;
 
   late final AnimationController _pulse = AnimationController(
     vsync: this,
@@ -41,116 +28,21 @@ class _VoiceHomeScreenState extends State<VoiceHomeScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _initVoice();
-  }
-
-  Future<void> _initVoice() async {
-    final ok = await _voice.init();
-    if (!mounted) return;
-    setState(() => _micReady = ok);
-    if (ok && _wakeEnabled) _watch();
-  }
-
-  void _watch() {
-    if (!_micReady || !_wakeEnabled || _state != OrbState.idle) return;
-    _voice.startWatching(onWake: _onWake);
-  }
-
-  void _onWake() {
-    if (!mounted) return;
-    HapticFeedback.heavyImpact();
-    _ask();
-  }
-
-  Future<void> _ask() async {
-    if (!_micReady || _state != OrbState.idle) return;
-    setState(() {
-      _state = OrbState.listening;
-      _partial = '';
-    });
-
-    final question = await _voice.captureQuestion(
-      onPartial: (p) {
-        if (mounted) setState(() => _partial = p);
-      },
-    );
-    if (!mounted) return;
-
-    if (question.isEmpty) {
-      setState(() => _state = OrbState.idle);
-      _watch();
-      return;
-    }
-
-    setState(() {
-      _state = OrbState.thinking;
-      _lastHeard = question;
-      _lastReply = null;
-    });
-
-    String reply;
-    try {
-      _history.add(ChatMessage(role: 'user', content: question));
-      reply = await ApiService.sendChat(_history);
-      _history.add(ChatMessage(role: 'assistant', content: reply));
-    } catch (_) {
-      reply = "I couldn't reach the assistant. Please check your connection.";
-    }
-    if (!mounted) return;
-
-    setState(() {
-      _state = OrbState.speaking;
-      _lastReply = reply;
-    });
-    await _voice.speak(reply);
-    if (!mounted) return;
-
-    setState(() => _state = OrbState.idle);
-    _watch();
-  }
-
-  Future<void> _tapOrb() async {
-    HapticFeedback.mediumImpact();
-    switch (_state) {
-      case OrbState.idle:
-        await _voice.stopWatching();
-        _ask();
-      case OrbState.listening:
-        await _voice.cancelCapture();
-      case OrbState.speaking:
-        await _voice.stopSpeaking();
-        setState(() => _state = OrbState.idle);
-        _watch();
-      case OrbState.thinking:
-        break; // let it finish
-    }
-  }
-
-  void _toggleWake(bool v) {
-    HapticFeedback.selectionClick();
-    setState(() => _wakeEnabled = v);
-    if (v) {
-      _watch();
-    } else {
-      _voice.stopWatching();
-    }
+    _assistant.init();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState s) {
-    // Release the mic when backgrounded; resume the watch when back.
     if (s == AppLifecycleState.paused) {
-      _voice.stopWatching();
-    } else if (s == AppLifecycleState.resumed && _state == OrbState.idle) {
-      _watch();
+      _assistant.onBackground();
+    } else if (s == AppLifecycleState.resumed) {
+      _assistant.onForeground();
     }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _voice.stopWatching();
-    _voice.stopSpeaking();
     _pulse.dispose();
     super.dispose();
   }
@@ -162,14 +54,14 @@ class _VoiceHomeScreenState extends State<VoiceHomeScreen>
     return 'Good evening';
   }
 
-  String get _caption {
-    if (!_micReady) return 'Microphone unavailable — check app permissions';
-    return switch (_state) {
-      OrbState.idle => _wakeEnabled
+  String _caption(AssistantController a) {
+    if (!a.micReady) return 'Microphone unavailable — check app permissions';
+    return switch (a.state) {
+      OrbState.idle => a.wakeEnabled
           ? 'Say "Hey Hari" or tap the orb'
           : 'Tap the orb to speak — any language',
       OrbState.listening =>
-        _partial.isEmpty ? "I'm listening…" : '"$_partial"',
+        a.partial.isEmpty ? "I'm listening…" : '"${a.partial}"',
       OrbState.thinking => 'Thinking…',
       OrbState.speaking => 'Speaking — tap to interrupt',
     };
@@ -180,63 +72,84 @@ class _VoiceHomeScreenState extends State<VoiceHomeScreen>
     final cs = Theme.of(context).colorScheme;
     final muted = cs.onSurface.withValues(alpha: 0.60);
 
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          children: [
-            const SizedBox(height: 16),
-            Text(_greeting, style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: 8),
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 250),
-              child: Text(
-                _caption,
-                key: ValueKey(_caption),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 15, color: muted),
-              ),
-            ),
-            Expanded(
-              child: Center(
-                child: _BloomOrb(state: _state, pulse: _pulse, onTap: _tapOrb),
-              ),
-            ),
-
-            // Real transcript card — only after a real exchange.
-            if (_lastHeard != null) ...[
-              _TranscriptCard(heard: _lastHeard!, reply: _lastReply),
-              const SizedBox(height: 12),
-            ],
-
-            // Wake word switch
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-              decoration: BoxDecoration(
-                color: cs.surface,
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.hearing_rounded,
-                      size: 18, color: _wakeEnabled ? cs.primary : muted),
-                  const SizedBox(width: 8),
-                  Text('"Hey Hari" wake word',
-                      style: const TextStyle(fontSize: 13.5)),
-                  Switch(
-                    value: _wakeEnabled && _micReady,
-                    onChanged: _micReady ? _toggleWake : null,
+    return ListenableBuilder(
+      listenable: _assistant,
+      builder: (context, _) {
+        final a = _assistant;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              children: [
+                const SizedBox(height: 16),
+                Text(_greeting,
+                    style: Theme.of(context).textTheme.headlineMedium),
+                const SizedBox(height: 8),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 250),
+                  child: Text(
+                    _caption(a),
+                    key: ValueKey(_caption(a)),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 15, color: muted),
                   ),
+                ),
+                Expanded(
+                  child: Center(
+                    child: _BloomOrb(
+                      state: a.state,
+                      pulse: _pulse,
+                      onTap: a.tapOrb,
+                    ),
+                  ),
+                ),
+                if (a.lastHeard != null) ...[
+                  _TranscriptCard(heard: a.lastHeard!, reply: a.lastReply),
+                  const SizedBox(height: 12),
                 ],
-              ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: cs.surface,
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.hearing_rounded,
+                          size: 18,
+                          color: a.wakeEnabled ? cs.primary : muted),
+                      const SizedBox(width: 8),
+                      const Text('"Hey Hari" wake word',
+                          style: TextStyle(fontSize: 13.5)),
+                      Switch(
+                        value: a.wakeEnabled && a.micReady,
+                        onChanged: a.micReady
+                            ? (v) {
+                                HapticFeedback.selectionClick();
+                                a.setWakeEnabled(v);
+                              }
+                            : null,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  a.onDeviceWake
+                      ? 'On-device wake word · works with screen off'
+                      : 'Basic wake word · app must be open',
+                  style: TextStyle(fontSize: 11.5, color: muted),
+                ),
+                const SizedBox(height: 14),
+              ],
             ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -251,7 +164,7 @@ class _TranscriptCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
-      constraints: const BoxConstraints(maxHeight: 170),
+      constraints: const BoxConstraints(maxHeight: 160),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: cs.surface,
@@ -305,7 +218,7 @@ class _BloomOrb extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, box) {
-        final size = box.biggest.shortestSide.clamp(200.0, 300.0);
+        final size = box.biggest.shortestSide.clamp(190.0, 290.0);
         return AnimatedBuilder(
           animation: pulse,
           builder: (context, _) {

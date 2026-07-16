@@ -32,6 +32,16 @@ class ApiService {
     return config;
   }
 
+  /// Fire-and-forget connection warm-up. Called the instant the wake
+  /// word fires so DNS/TLS (and a sleeping free-tier host) are already
+  /// awake by the time the question finishes being spoken.
+  static void warm() {
+    http
+        .get(Uri.parse('$baseUrl/health'))
+        .timeout(const Duration(seconds: 8))
+        .ignore();
+  }
+
   static Future<String> sendChat(List<ChatMessage> history) async {
     final r = await http
         .post(

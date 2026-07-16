@@ -21,6 +21,10 @@ dependencies:
   speech_to_text: ^7.0.0
   flutter_tts: ^4.1.0
 
+  # Screen-off wake word: on-device detection + mic foreground service
+  porcupine_flutter: ^3.0.4
+  flutter_foreground_task: ^8.17.0
+
   # Local storage for session + cached config
   shared_preferences: ^2.3.2
 
@@ -50,3 +54,4 @@ flutter:
 
   assets:
     - assets/icon/
+    - assets/wake/

@@ -136,8 +136,8 @@ class VoiceService {
         listenMode: stt.ListenMode.dictation,
         cancelOnError: true,
       ),
-      listenFor: const Duration(seconds: 20),
-      pauseFor: const Duration(seconds: 3),
+      listenFor: const Duration(seconds: 16),
+      pauseFor: const Duration(milliseconds: 2200),
     );
 
     // Safety net if the recognizer ends without a final result.
