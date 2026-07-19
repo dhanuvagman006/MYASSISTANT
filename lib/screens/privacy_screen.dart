@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../models/memory_item.dart';
+import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 
 /// Screen 08 — Privacy, Memory & Safety (E1–E3, F1–F3).
@@ -20,16 +22,7 @@ class PrivacyScreen extends StatelessWidget {
         Text('Trust is a feature. Everything here is yours to control.',
             style: TextStyle(color: muted)),
         const SizedBox(height: 20),
-        _Section(
-          title: 'WHAT I REMEMBER',
-          child: _EmptyRow(
-            icon: Icons.auto_awesome_outlined,
-            text:
-                'Nothing yet. Facts the assistant learns — like preferences '
-                'or important dates — will appear here in plain language, '
-                'each with its own delete button.',
-          ),
-        ),
+        const _MemorySection(),
         const SizedBox(height: 16),
         _Section(
           title: 'CONNECTED SERVICES',
@@ -83,6 +76,208 @@ class PrivacyScreen extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// LIVE "WHAT I REMEMBER" — every fact Hari knows about this account,
+/// in plain language, each with its own delete button, plus "teach me
+/// something" and "forget everything". No hidden state: this list IS
+/// the memory the AI reads on every reply.
+class _MemorySection extends StatefulWidget {
+  const _MemorySection();
+
+  @override
+  State<_MemorySection> createState() => _MemorySectionState();
+}
+
+class _MemorySectionState extends State<_MemorySection> {
+  List<MemoryItem>? _items; // null = loading
+  String? _error;
+
+  static const _categoryIcons = {
+    'profile': Icons.person_outline_rounded,
+    'preference': Icons.favorite_outline_rounded,
+    'fact': Icons.auto_awesome_outlined,
+    'context': Icons.push_pin_outlined,
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final items = await ApiService.fetchMemories();
+      if (mounted) setState(() { _items = items; _error = null; });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _items = [];
+          _error = ApiService.sessionToken == null
+              ? 'Sign in to see what Hari remembers about you.'
+              : 'Could not load memories. Pull to retry later.';
+        });
+      }
+    }
+  }
+
+  Future<void> _forget(MemoryItem m) async {
+    setState(() => _items!.removeWhere((x) => x.id == m.id));
+    try {
+      await ApiService.deleteMemory(m.id);
+    } catch (_) {
+      _load(); // restore truth from the server on failure
+    }
+  }
+
+  Future<void> _forgetAll() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Forget everything?'),
+        content: const Text(
+            'Hari will permanently delete every remembered fact and start '
+            'fresh. This cannot be undone.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            child: const Text('Forget everything'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() => _items = []);
+    try {
+      await ApiService.clearMemories();
+    } catch (_) {
+      _load();
+    }
+  }
+
+  Future<void> _teach() async {
+    final controller = TextEditingController();
+    final text = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Teach Hari something'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 200,
+          decoration: const InputDecoration(
+            hintText: 'e.g. I am vegetarian, my sister is Ananya…',
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Remember'),
+          ),
+        ],
+      ),
+    );
+    if (text == null || text.isEmpty) return;
+    try {
+      // Key from the first few words; the value is the full sentence.
+      final key = text.split(RegExp(r'\s+')).take(4).join('_');
+      await ApiService.addMemory(key, text, category: 'fact');
+      _load();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not save — are you signed in?')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final muted =
+        Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.60);
+
+    Widget body;
+    if (_items == null) {
+      body = const Padding(
+        padding: EdgeInsets.all(24),
+        child: Center(child: CircularProgressIndicator(strokeWidth: 2.5)),
+      );
+    } else if (_error != null) {
+      body = _EmptyRow(icon: Icons.cloud_off_rounded, text: _error!);
+    } else if (_items!.isEmpty) {
+      body = const _EmptyRow(
+        icon: Icons.auto_awesome_outlined,
+        text: 'Nothing yet. Facts Hari learns — like preferences or '
+            'important dates — will appear here in plain language, each '
+            'with its own delete button.',
+      );
+    } else {
+      body = Column(
+        children: [
+          for (final m in _items!) ...[
+            ListTile(
+              dense: true,
+              leading: Icon(
+                  _categoryIcons[m.category] ?? Icons.auto_awesome_outlined,
+                  size: 20,
+                  color: AppColors.peacock),
+              title: Text(m.title,
+                  style: const TextStyle(
+                      fontSize: 13.5, fontWeight: FontWeight.w600)),
+              subtitle: Text(m.value,
+                  style: TextStyle(fontSize: 13, color: muted, height: 1.35)),
+              trailing: IconButton(
+                tooltip: 'Forget this',
+                icon: Icon(Icons.close_rounded, size: 18, color: muted),
+                onPressed: () => _forget(m),
+              ),
+            ),
+            if (m != _items!.last) const Divider(height: 1),
+          ],
+        ],
+      );
+    }
+
+    return _Section(
+      title: 'WHAT I REMEMBER',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          body,
+          if (_items != null && _error == null) ...[
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Row(
+                children: [
+                  TextButton.icon(
+                    onPressed: _teach,
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                    label: const Text('Teach Hari something'),
+                  ),
+                  const Spacer(),
+                  if (_items!.isNotEmpty)
+                    TextButton(
+                      onPressed: _forgetAll,
+                      style: TextButton.styleFrom(
+                          foregroundColor: AppColors.danger),
+                      child: const Text('Forget all'),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

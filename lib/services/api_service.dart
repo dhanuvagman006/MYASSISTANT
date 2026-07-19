@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 
 import '../models/chat_message.dart';
+import '../models/memory_item.dart';
 import '../models/remote_config.dart';
 
 /// All network traffic goes app → backend → AI providers.
@@ -120,5 +121,52 @@ class ApiService {
       throw Exception('Server error ${r.statusCode}');
     }
     return (jsonDecode(r.body)['reply'] as String?) ?? '';
+  }
+
+  // ---------------- PER-USER MEMORY ----------------
+  // Backs the "Privacy & memory → WHAT I REMEMBER" screen. All calls
+  // require a signed-in session (memory is per-account, not per-device).
+
+  /// Everything Hari remembers about the signed-in user.
+  static Future<List<MemoryItem>> fetchMemories() async {
+    final r = await http
+        .get(Uri.parse('$baseUrl/memory'), headers: _authHeaders)
+        .timeout(const Duration(seconds: 15));
+    if (r.statusCode != 200) {
+      throw Exception('Could not load memories (${r.statusCode})');
+    }
+    final list = (jsonDecode(r.body)['memories'] as List? ?? []);
+    return list
+        .map((m) => MemoryItem.fromJson(m as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// User teaches Hari a fact directly ("remember that I'm vegetarian").
+  static Future<void> addMemory(String key, String value,
+      {String category = 'fact'}) async {
+    final r = await http
+        .post(
+          Uri.parse('$baseUrl/memory'),
+          headers: _authHeaders,
+          body: jsonEncode({'key': key, 'value': value, 'category': category}),
+        )
+        .timeout(const Duration(seconds: 15));
+    if (r.statusCode != 200) throw Exception('Could not save (${r.statusCode})');
+  }
+
+  /// Forget one fact — powers the per-row delete button.
+  static Future<void> deleteMemory(int id) async {
+    final r = await http
+        .delete(Uri.parse('$baseUrl/memory/$id'), headers: _authHeaders)
+        .timeout(const Duration(seconds: 15));
+    if (r.statusCode != 200) throw Exception('Could not delete (${r.statusCode})');
+  }
+
+  /// Forget everything — the nuclear "clear memory" button.
+  static Future<void> clearMemories() async {
+    final r = await http
+        .delete(Uri.parse('$baseUrl/memory'), headers: _authHeaders)
+        .timeout(const Duration(seconds: 15));
+    if (r.statusCode != 200) throw Exception('Could not clear (${r.statusCode})');
   }
 }

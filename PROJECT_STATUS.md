@@ -128,3 +128,14 @@ flutter run --dart-define=BASE_URL=http://<LAPTOP_LAN_IP>:3000 \
 - A GitHub PAT was pasted into a previous chat and used for pushes; it must be **revoked/rotated**
   (github.com → Settings → Developer settings). Never commit it; use a fresh token per session.
 - AI keys live ONLY in the backend `.env`; the app never holds provider keys.
+
+## Update — 19 July 2026: Memory feature (app side)
+- **`models/memory_item.dart`** — MemoryItem (id, category, key, value, source,
+  updatedAt) + display title helper.
+- **`services/api_service.dart`** — `fetchMemories / addMemory / deleteMemory /
+  clearMemories` against the backend's new `/memory` routes (session JWT).
+- **`screens/privacy_screen.dart`** — "WHAT I REMEMBER" is now LIVE: lists every
+  fact with a category icon and per-row forget button, "Teach Hari something"
+  dialog (saves with source=user), and confirmed "Forget all". Signed-out and
+  offline states handled. No client changes needed for personalization itself —
+  the backend injects memory into every /chat reply automatically.
