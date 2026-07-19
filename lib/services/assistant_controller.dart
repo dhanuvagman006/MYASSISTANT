@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:porcupine_flutter/porcupine_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 import '../models/chat_message.dart';
 import 'api_service.dart';
@@ -41,6 +42,11 @@ class AssistantController extends ChangeNotifier {
   String? lastHeard;
   String? lastReply;
 
+  /// Recognizer language. null = automatic (device language).
+  /// The picker on Voice Home writes this; it's persisted.
+  String? sttLocaleId;
+  String? sttLocaleName;
+
   PorcupineManager? _porcupine;
   bool _initialized = false;
 
@@ -48,6 +54,8 @@ class AssistantController extends ChangeNotifier {
   static const _modelAsset = 'assets/wake/hey_hari_android.ppn';
 
   static const _wakePrefKey = 'wake_word_enabled';
+  static const _sttLocalePrefKey = 'stt_locale_id';
+  static const _sttLocaleNamePrefKey = 'stt_locale_name';
 
   Future<void> init() async {
     if (_initialized) return;
@@ -58,6 +66,8 @@ class AssistantController extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       wakeEnabled = prefs.getBool(_wakePrefKey) ?? true;
+      sttLocaleId = prefs.getString(_sttLocalePrefKey);
+      sttLocaleName = prefs.getString(_sttLocaleNamePrefKey);
     } catch (_) {}
 
     micReady = await _voice.init();
@@ -123,6 +133,26 @@ class AssistantController extends ChangeNotifier {
     }
   }
 
+  /// Languages the device recognizer supports, for the picker UI.
+  Future<List<stt.LocaleName>> availableLanguages() =>
+      _voice.sttLocales();
+
+  Future<void> setSttLocale(String? localeId, String? localeName) async {
+    sttLocaleId = localeId;
+    sttLocaleName = localeName;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (localeId == null) {
+        await prefs.remove(_sttLocalePrefKey);
+        await prefs.remove(_sttLocaleNamePrefKey);
+      } else {
+        await prefs.setString(_sttLocalePrefKey, localeId);
+        await prefs.setString(_sttLocaleNamePrefKey, localeName ?? localeId);
+      }
+    } catch (_) {}
+  }
+
   void _onWake() {
     HapticFeedback.heavyImpact();
     ApiService.warm(); // wake the network path immediately
@@ -139,44 +169,71 @@ class AssistantController extends ChangeNotifier {
     partial = '';
     notifyListeners();
 
-    final question = await _voice.captureQuestion(onPartial: (p) {
-      partial = p;
-      notifyListeners();
-    });
+    final question = await _voice.captureQuestion(
+      localeId: sttLocaleId,
+      onPartial: (p) {
+        partial = p;
+        notifyListeners();
+      },
+    );
 
-    if (question.isEmpty) {
-      state = OrbState.idle;
-      notifyListeners();
-      await _startWake();
-      return;
-    }
-
-    state = OrbState.thinking;
-    lastHeard = question;
-    lastReply = null;
-    notifyListeners();
-
-    String reply;
-    try {
-      _history.add(ChatMessage(role: 'user', content: question));
-      // Keep the payload small for latency; backend trims further.
-      final window = _history.length > 12
-          ? _history.sublist(_history.length - 12)
-          : _history;
-      reply = await ApiService.sendChat(window);
-      _history.add(ChatMessage(role: 'assistant', content: reply));
-    } catch (_) {
-      reply = "I couldn't reach the assistant. Please check your connection.";
-    }
-
-    state = OrbState.speaking;
-    lastReply = reply;
-    notifyListeners();
-    await _voice.speak(reply);
+    await _answerLoop(question);
 
     state = OrbState.idle;
     notifyListeners();
     await _startWake();
+  }
+
+  /// question -> reply -> speak (interruptible). If the user barges in
+  /// while Hari is speaking, their words become the next question and
+  /// the loop continues — a natural back-and-forth conversation.
+  Future<void> _answerLoop(String firstQuestion) async {
+    var question = firstQuestion.trim();
+
+    while (question.isNotEmpty) {
+      state = OrbState.thinking;
+      lastHeard = question;
+      lastReply = null;
+      notifyListeners();
+
+      String reply;
+      try {
+        _history.add(ChatMessage(role: 'user', content: question));
+        // Keep the payload small for latency; backend trims further.
+        final window = _history.length > 12
+            ? _history.sublist(_history.length - 12)
+            : _history;
+        reply = await ApiService.sendChat(window);
+        _history.add(ChatMessage(role: 'assistant', content: reply));
+      } catch (_) {
+        reply =
+            "I couldn't reach the assistant. Please check your connection.";
+      }
+
+      state = OrbState.speaking;
+      lastReply = reply;
+      partial = '';
+      notifyListeners();
+
+      final result = await _voice.speakInterruptible(
+        reply,
+        localeId: sttLocaleId,
+        onInterrupted: () {
+          // User started talking over Hari — flip to listening instantly.
+          HapticFeedback.lightImpact();
+          state = OrbState.listening;
+          partial = '';
+          notifyListeners();
+        },
+        onPartial: (p) {
+          partial = p;
+          notifyListeners();
+        },
+      );
+
+      if (!result.interrupted) break;
+      question = result.question.trim();
+    }
   }
 
   /// Orb tap behaviour, mirroring the design doc.

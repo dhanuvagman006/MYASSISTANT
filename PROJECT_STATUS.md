@@ -53,6 +53,26 @@ Note: `android/`/`ios/` folders are NOT in the repo — generated locally once w
 
 Last commit at time of writing: `3e04298` on `main`.
 
+10. **Natural multilingual voice + barge-in** (voice_service.dart, assistant_controller.dart, voice_home_screen.dart):
+    - TTS picks the most human voice installed per language (scores neural/wavenet/network
+      voices above the robotic "local" defaults) — best free upgrade; a cloud TTS
+      (ElevenLabs / Google Cloud) via a backend /tts endpoint is the next step if the
+      client wants studio-grade voices.
+    - Every reply's language is auto-detected (all Indic scripts + CJK/Cyrillic/Arabic/etc.
+      by Unicode ranges; Latin languages by stop-word vote, default en-IN) and the TTS
+      voice switches to match.
+    - BARGE-IN: while Hari speaks, the recognizer stays open; an echo filter (novel-word
+      check vs. the reply text, wake word always passes) detects real user speech, cuts
+      TTS mid-sentence, and the same recognition session becomes the next question —
+      continuous conversation loop in _answerLoop().
+      ⚠️ Caveat to test on device: some Android builds duck/mute TTS while SpeechRecognizer
+      is active. If TTS is quiet during barge-in on the test phone, gate barge-in behind a
+      flag or move to a raw-audio VAD approach.
+    - Multilingual HEARING: "I speak…" language picker (globe pill on Voice Home) —
+      Auto (device) + every recognizer locale, searchable, persisted (stt_locale_id).
+    - Backend system prompt updated: reply in the user's language & script, 1–3 spoken
+      sentences, no markdown/emojis (replies are read aloud).
+
 ## ⚠️ CURRENT STATE / OPEN ISSUE — resume here
 - User's last `flutter run` after commit `3e04298` produced **"long lengthy errors" that were
   NOT yet shared or diagnosed**. First suspects, in order:
