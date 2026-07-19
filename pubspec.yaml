@@ -38,6 +38,10 @@ dependencies:
   record: ^6.1.1
   path_provider: ^2.1.4
 
+  # Voice calling — read contacts + place calls ("Hey Hari, call amma")
+  flutter_contacts: ^1.1.9+2
+  flutter_phone_direct_caller: ^2.1.1
+
   # Reminder notifications — fire even when the app is closed
   flutter_local_notifications: ^18.0.1
   timezone: ^0.9.4

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:porcupine_flutter/porcupine_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,6 +9,7 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../models/chat_message.dart';
 import 'api_service.dart';
 import 'auth_service.dart';
+import 'call_service.dart';
 import 'notification_service.dart';
 import 'region_language.dart';
 import 'voice_service.dart';
@@ -391,6 +393,10 @@ class AssistantController extends ChangeNotifier {
     question = question.trim();
     if (question.isEmpty) return;
 
+    // DEVICE ACTIONS FIRST: "call amma" is handled entirely on-device
+    // (contacts + dialer) — private, instant, works offline.
+    if (await _handleCallIntent(question)) return;
+
     state = OrbState.thinking;
     lastHeard = question;
     lastReply = null;
@@ -454,6 +460,83 @@ class AssistantController extends ChangeNotifier {
         notifyListeners();
       }
     } catch (_) {}
+  }
+
+  // ---------------- VOICE CALLING ----------------
+
+  /// Set while Hari has asked "which one?" — the next heard phrase picks
+  /// from these contacts instead of going to the AI.
+  List<Contact>? _pendingCallOptions;
+
+  Future<void> _sayLocal(String text) async {
+    state = OrbState.speaking;
+    lastReply = text;
+    notifyListeners();
+    await _voice.speak(text);
+  }
+
+  /// Returns true when [question] was a call request (handled here).
+  Future<bool> _handleCallIntent(String question) async {
+    final svc = CallService.instance;
+
+    // A "which one?" follow-up is pending: interpret this as the choice.
+    if (_pendingCallOptions != null) {
+      final options = _pendingCallOptions!;
+      _pendingCallOptions = null;
+      if (svc.isCancel(question)) {
+        lastHeard = question;
+        await _sayLocal('Okay, cancelled.');
+        return true;
+      }
+      final chosen = svc.chooseFrom(options, question);
+      if (chosen != null) {
+        lastHeard = question;
+        await _placeCall(chosen);
+        return true;
+      }
+      return false; // not a choice — treat as a normal question
+    }
+
+    final name = svc.parseCallIntent(question);
+    if (name == null) return false;
+    lastHeard = question;
+    lastReply = null;
+    notifyListeners();
+
+    final matches = await svc.findContacts(name);
+    if (matches.isEmpty) {
+      final hasPerm = await svc.ensurePermission();
+      await _sayLocal(hasPerm
+          ? "I couldn't find $name in your contacts."
+          : 'I need contact access to make calls — you can allow it in settings.');
+      return true;
+    }
+    if (matches.length == 1) {
+      await _placeCall(matches.first);
+      return true;
+    }
+
+    // Several close matches: ask, then listen for the answer.
+    final names = matches.map((c) => c.displayName).toList();
+    final listed = names.length == 2
+        ? '${names[0]} or ${names[1]}'
+        : '${names.sublist(0, names.length - 1).join(', ')}, or ${names.last}';
+    _pendingCallOptions = matches;
+    await _sayLocal('I found ${matches.length}: $listed. Which one?');
+    state = OrbState.idle;
+    notifyListeners();
+    await ask(); // opens the mic; the reply routes back through here
+    return true;
+  }
+
+  Future<void> _placeCall(Contact c) async {
+    final svc = CallService.instance;
+    final number = svc.bestNumber(c);
+    await _sayLocal('Calling ${c.displayName}…');
+    final ok = await svc.call(number);
+    if (!ok) {
+      await _sayLocal("Sorry, I couldn't start the call.");
+    }
   }
 
   /// Orb tap behaviour, mirroring the design doc.

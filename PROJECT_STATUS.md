@@ -206,3 +206,21 @@ flutter run --dart-define=BASE_URL=http://<LAPTOP_LAN_IP>:3000 \
 - ApiService: connectGoogle/googleConnected/disconnectGoogle/fetchGmailInbox/
   fetchCalendarEvents (null = not linked). Voice answers "any new emails?" /
   "what's my schedule?" from real data.
+
+## Update — 19 July 2026 (7): Voice calling (B1)
+- **`services/call_service.dart`** — fully ON-DEVICE (contacts never reach the
+  backend): call-intent patterns (English "call/dial/phone/ring X", Hinglish
+  "X ko call karo", Hindi "X को कॉल", Kannada "Xಗೆ ಕರೆ ಮಾಡು"), fuzzy contact
+  matching (exact>word>prefix>contains, nicknames included, keeps close calls
+  within 20 pts), mobile-number preference, direct dial via
+  flutter_phone_direct_caller with tel: dialer fallback.
+- **Controller** — `_handleCallIntent` runs BEFORE the AI in _answerOnce:
+  1 match → "Calling X…" + dial; several → Hari lists them, opens the mic, the
+  reply picks by name or ordinal ("the first one"), "cancel/rehne do" aborts;
+  none → spoken not-found / permission hint.
+- **Calls screen LIVE** — searchable contact list (name/number), starred
+  Favourites pinned, tap-to-call, multi-number picker sheet, permission
+  denied state with retry.
+- deps: + flutter_contacts, flutter_phone_direct_caller.
+  ⚠ Manifest: READ_CONTACTS + CALL_PHONE (Android); NSContactsUsageDescription
+  (iOS; iOS always shows the tel: confirmation — platform rule).
