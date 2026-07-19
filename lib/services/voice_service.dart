@@ -47,10 +47,17 @@ class VoiceService {
         t.split(RegExp(r'\s+')).any((w) => w == 'hari' || w == 'harry');
   }
 
+  /// Session hooks: the active capture / barge-in session subscribes to
+  /// recognizer status + errors so it can restart or finish immediately
+  /// (the Android recognizer stops itself after a few quiet seconds).
+  void Function(String status)? _sessionStatus;
+  void Function()? _sessionError;
+
   Future<bool> init() async {
     if (_ready) return true;
     _ready = await _stt.initialize(
       onStatus: (status) {
+        _sessionStatus?.call(status);
         // The platform recognizer stops itself every few seconds of
         // silence; while watching we simply start it again.
         if (_watching && (status == 'done' || status == 'notListening')) {
@@ -64,6 +71,7 @@ class VoiceService {
         }
       },
       onError: (_) {
+        _sessionError?.call();
         if (_watching) {
           _restartTimer?.cancel();
           _restartTimer = Timer(
@@ -318,12 +326,28 @@ class VoiceService {
       pauseFor: const Duration(milliseconds: 2200),
     );
 
-    // Safety net if the recognizer ends without a final result.
+    // Finish the moment the recognizer session actually ends, so the UI
+    // never shows "listening" while the mic is already off.
+    void finishSoon() {
+      Timer(const Duration(milliseconds: 350), () {
+        if (!completer.isCompleted) completer.complete(last.trim());
+      });
+    }
+
+    _sessionStatus = (st) {
+      if (st == 'done' || st == 'notListening') finishSoon();
+    };
+    _sessionError = finishSoon;
+
+    // Safety net if no status ever arrives.
     Timer(const Duration(seconds: 24), () {
       if (!completer.isCompleted) completer.complete(last.trim());
     });
 
-    return completer.future;
+    final q = await completer.future;
+    _sessionStatus = null;
+    _sessionError = null;
+    return q;
   }
 
   Future<void> cancelCapture() async {
@@ -341,10 +365,11 @@ class VoiceService {
 
   /// Speaks [text] while keeping the mic open for BARGE-IN.
   ///
-  /// If the user starts talking (echo-filtered so the assistant doesn't
-  /// react to its own audio), TTS stops immediately, [onInterrupted]
-  /// fires, and the SAME recognition session keeps running until the
-  /// user finishes — the result comes back as the next [question].
+  /// The ear is auto-restarted whenever Android's recognizer stops itself
+  /// mid-reply, so barge-in works for the WHOLE reply, not just the first
+  /// few seconds. The echo filter is strict — "Hey Hari" or a clearly new
+  /// sentence interrupts; the assistant's own voice does not. Tapping the
+  /// orb still stops speech instantly (handled by the controller).
   Future<SpeakResult> speakInterruptible(
     String text, {
     String? localeId,
@@ -355,57 +380,97 @@ class VoiceService {
     await _applyLanguageFor(text);
 
     final replyNorm = _norm(text);
+    final startedAt = DateTime.now();
     var interrupted = false;
+    var ttsDone = false;
     var heard = '';
     final finished = Completer<SpeakResult>();
+    Timer? restart;
 
     void completeWith(SpeakResult r) {
       if (!finished.isCompleted) finished.complete(r);
     }
 
-    // Open the barge-in ear. If the device can't listen while speaking,
-    // TTS still plays; we just lose barge-in for this reply.
-    try {
-      await _stt.listen(
-        localeId: localeId,
-        onResult: (r) {
-          final words = r.recognizedWords;
-          if (!interrupted) {
-            if (!_looksLikeUserSpeech(words, replyNorm)) return;
-            interrupted = true;
-            _tts.stop(); // cut the assistant off mid-sentence
-            onInterrupted?.call();
-          }
-          heard = words;
-          onPartial?.call(words);
-          if (r.finalResult) {
-            completeWith(SpeakResult(interrupted: true, question: heard.trim()));
-          }
-        },
-        listenOptions: stt.SpeechListenOptions(
-          partialResults: true,
-          listenMode: stt.ListenMode.dictation,
-          cancelOnError: true,
-        ),
-        listenFor: const Duration(seconds: 60),
-        pauseFor: const Duration(milliseconds: 2200),
-      );
-    } catch (_) {}
+    void onResult(dynamic r) {
+      final words = r.recognizedWords as String;
+      if (!interrupted) {
+        // Grace period: right after TTS starts the mic mostly hears
+        // the assistant itself — ignore that window entirely.
+        if (DateTime.now().difference(startedAt).inMilliseconds < 700) return;
+        if (!_looksLikeUserSpeech(words, replyNorm)) return;
+        interrupted = true;
+        _tts.stop(); // cut the assistant off mid-sentence
+        onInterrupted?.call();
+      }
+      heard = words;
+      onPartial?.call(words);
+      if (r.finalResult as bool) {
+        completeWith(SpeakResult(interrupted: true, question: heard.trim()));
+      }
+    }
+
+    Future<void> openEar() async {
+      if (finished.isCompleted || _stt.isListening) return;
+      try {
+        await _stt.listen(
+          localeId: localeId,
+          onResult: onResult,
+          listenOptions: stt.SpeechListenOptions(
+            partialResults: true,
+            listenMode: stt.ListenMode.dictation,
+            cancelOnError: true,
+          ),
+          listenFor: const Duration(seconds: 60),
+          pauseFor: const Duration(seconds: 8),
+        );
+      } catch (_) {}
+    }
+
+    void onSessionEnd() {
+      restart?.cancel();
+      if (interrupted) {
+        // The user's sentence is over (or the session died) — return
+        // whatever we heard NOW instead of hanging in "listening".
+        restart = Timer(const Duration(milliseconds: 350), () {
+          completeWith(SpeakResult(interrupted: true, question: heard.trim()));
+        });
+      } else if (!ttsDone) {
+        // Recognizer stopped itself while Hari is still talking —
+        // reopen the ear so barge-in keeps working for the whole reply.
+        restart = Timer(const Duration(milliseconds: 300), openEar);
+      }
+    }
+
+    _sessionStatus = (st) {
+      if (st == 'done' || st == 'notListening') onSessionEnd();
+    };
+    _sessionError = onSessionEnd;
+
+    await openEar();
 
     // With awaitSpeakCompletion(true) this resolves when speech ends —
     // naturally, via tapOrb's stopSpeaking(), or via barge-in stop().
     await _tts.speak(text);
+    ttsDone = true;
 
     if (!interrupted) {
+      restart?.cancel();
+      _sessionStatus = null;
+      _sessionError = null;
       await cancelCapture();
       return const SpeakResult(interrupted: false);
     }
 
-    // Barge-in happened: wait for the user's full sentence.
-    Timer(const Duration(seconds: 20), () {
+    // Barge-in happened: wait for the user's full sentence (bounded).
+    Timer(const Duration(seconds: 15), () {
       completeWith(SpeakResult(interrupted: true, question: heard.trim()));
     });
-    return finished.future;
+    final r = await finished.future;
+    restart?.cancel();
+    _sessionStatus = null;
+    _sessionError = null;
+    await cancelCapture();
+    return r;
   }
 
   static String _norm(String s) => s
@@ -416,18 +481,23 @@ class VoiceService {
 
   /// Echo filter: is this transcript real user speech, or just the mic
   /// hearing the assistant's own voice?
+  ///
+  /// STRICT on purpose. When the recognizer language differs from the
+  /// reply language it transcribes the assistant's own audio as random
+  /// words, so "a couple of new words" is NOT enough evidence. Rules:
+  ///   • "Hey Hari" always interrupts (any pronunciation variant).
+  ///   • Otherwise we need a real sentence: 3+ words that clearly do
+  ///     not come from the reply being spoken.
+  /// For anything shorter, tapping the orb interrupts instantly.
   static bool _looksLikeUserSpeech(String transcript, String replyNorm) {
     final t = _norm(transcript);
     if (t.isEmpty) return false;
     if (containsWakeWord(t)) return true; // "Hey Hari" always interrupts
-    final tokens = t.split(' ');
-    // Too little signal yet — wait for more.
-    if (tokens.length == 1 && t.length < 4) return false;
     if (replyNorm.contains(t)) return false; // pure echo of the reply
-    // Count words that do NOT appear in the reply.
+    final tokens = t.split(' ');
     final novel =
         tokens.where((w) => w.length > 2 && !replyNorm.contains(w)).length;
-    return novel >= 2 || (novel >= 1 && tokens.length <= 2);
+    return novel >= 3;
   }
 
   Future<void> stopSpeaking() => _tts.stop();
