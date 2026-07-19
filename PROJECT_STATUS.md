@@ -53,7 +53,7 @@ Note: `android/`/`ios/` folders are NOT in the repo — generated locally once w
 
 Last commit at time of writing: `3e04298` on `main`.
 
-10. **Natural multilingual voice + barge-in** (voice_service.dart, assistant_controller.dart, voice_home_screen.dart):
+10. **Natural multilingual voice** (barge-in was added then REMOVED at user request — too many false triggers on-device; tap-to-interrupt only now) (voice_service.dart, assistant_controller.dart, voice_home_screen.dart):
     - TTS picks the most human voice installed per language (scores neural/wavenet/network
       voices above the robotic "local" defaults) — best free upgrade; a cloud TTS
       (ElevenLabs / Google Cloud) via a backend /tts endpoint is the next step if the
@@ -72,6 +72,14 @@ Last commit at time of writing: `3e04298` on `main`.
       Auto (device) + every recognizer locale, searchable, persisted (stt_locale_id).
     - Backend system prompt updated: reply in the user's language & script, 1–3 spoken
       sentences, no markdown/emojis (replies are read aloud).
+
+11. **Regional language from location** (region_language.dart) — on first run (Auto mode),
+    coarse location -> platform geocoder -> Indian state -> language (Karnataka=kn, Kerala=ml,
+    TN=ta, AP/TG=te, MH=mr, GJ=gu, PB=pa, WB=bn, Hindi belt=hi, plus country map for abroad),
+    validated against the device recognizer's supported locales. Pill shows "Auto · Kannada".
+    User's manual pick in the "I speak…" sheet always overrides. Needs
+    ACCESS_COARSE_LOCATION in the local AndroidManifest (README updated) and
+    `flutter pub get` (new deps: geolocator, geocoding).
 
 ## ⚠️ CURRENT STATE / OPEN ISSUE — resume here
 - User's last `flutter run` after commit `3e04298` produced **"long lengthy errors" that were

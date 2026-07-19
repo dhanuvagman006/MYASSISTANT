@@ -7,6 +7,7 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 import '../models/chat_message.dart';
 import 'api_service.dart';
+import 'region_language.dart';
 import 'voice_service.dart';
 
 enum OrbState { idle, listening, thinking, speaking }
@@ -42,10 +43,18 @@ class AssistantController extends ChangeNotifier {
   String? lastHeard;
   String? lastReply;
 
-  /// Recognizer language. null = automatic (device language).
-  /// The picker on Voice Home writes this; it's persisted.
+  /// Recognizer language chosen by the user in the picker (persisted).
+  /// null = Auto: use the regional language detected from location,
+  /// falling back to the device recognizer default.
   String? sttLocaleId;
   String? sttLocaleName;
+
+  /// Regional language resolved from the user's location (Auto mode).
+  String? autoLocaleId;
+  String? autoLocaleName;
+
+  /// What the recognizer actually uses.
+  String? get effectiveLocaleId => sttLocaleId ?? autoLocaleId;
 
   PorcupineManager? _porcupine;
   bool _initialized = false;
@@ -74,6 +83,42 @@ class AssistantController extends ChangeNotifier {
     await _initPorcupine();
     if (micReady && wakeEnabled) await _startWake();
     notifyListeners();
+
+    // Regional language from location (non-blocking; Auto mode only).
+    _detectRegionalLanguage();
+  }
+
+  /// Karnataka -> Kannada, Kerala -> Malayalam, etc. Only applies while
+  /// the user hasn't picked a language themselves, and only if the
+  /// device recognizer actually supports the regional locale.
+  Future<void> _detectRegionalLanguage() async {
+    if (sttLocaleId != null) return; // user's explicit choice wins
+    try {
+      final wanted = await RegionLanguage.candidates();
+      if (wanted.isEmpty) return;
+      final supported = await _voice.sttLocales();
+      if (supported.isEmpty) return;
+
+      String norm(String id) => id.toLowerCase().replaceAll('-', '_');
+      for (final want in wanted) {
+        final w = norm(want);
+        // Exact locale, else same language any region.
+        for (final exact in [true, false]) {
+          for (final l in supported) {
+            final id = norm(l.localeId);
+            final match = exact
+                ? id == w
+                : id.split('_').first == w.split('_').first;
+            if (match) {
+              autoLocaleId = l.localeId;
+              autoLocaleName = l.name;
+              notifyListeners();
+              return;
+            }
+          }
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _initPorcupine() async {
@@ -151,6 +196,7 @@ class AssistantController extends ChangeNotifier {
         await prefs.setString(_sttLocaleNamePrefKey, localeName ?? localeId);
       }
     } catch (_) {}
+    if (localeId == null) _detectRegionalLanguage();
   }
 
   void _onWake() {
@@ -170,70 +216,48 @@ class AssistantController extends ChangeNotifier {
     notifyListeners();
 
     final question = await _voice.captureQuestion(
-      localeId: sttLocaleId,
+      localeId: effectiveLocaleId,
       onPartial: (p) {
         partial = p;
         notifyListeners();
       },
     );
 
-    await _answerLoop(question);
+    await _answerOnce(question);
 
     state = OrbState.idle;
     notifyListeners();
     await _startWake();
   }
 
-  /// question -> reply -> speak (interruptible). If the user barges in
-  /// while Hari is speaking, their words become the next question and
-  /// the loop continues — a natural back-and-forth conversation.
-  Future<void> _answerLoop(String firstQuestion) async {
-    var question = firstQuestion.trim();
+  /// question -> reply -> speak. Interrupt by tapping the orb.
+  Future<void> _answerOnce(String question) async {
+    question = question.trim();
+    if (question.isEmpty) return;
 
-    while (question.isNotEmpty) {
-      state = OrbState.thinking;
-      lastHeard = question;
-      lastReply = null;
-      notifyListeners();
+    state = OrbState.thinking;
+    lastHeard = question;
+    lastReply = null;
+    notifyListeners();
 
-      String reply;
-      try {
-        _history.add(ChatMessage(role: 'user', content: question));
-        // Keep the payload small for latency; backend trims further.
-        final window = _history.length > 12
-            ? _history.sublist(_history.length - 12)
-            : _history;
-        reply = await ApiService.sendChat(window);
-        _history.add(ChatMessage(role: 'assistant', content: reply));
-      } catch (_) {
-        reply =
-            "I couldn't reach the assistant. Please check your connection.";
-      }
-
-      state = OrbState.speaking;
-      lastReply = reply;
-      partial = '';
-      notifyListeners();
-
-      final result = await _voice.speakInterruptible(
-        reply,
-        localeId: sttLocaleId,
-        onInterrupted: () {
-          // User started talking over Hari — flip to listening instantly.
-          HapticFeedback.lightImpact();
-          state = OrbState.listening;
-          partial = '';
-          notifyListeners();
-        },
-        onPartial: (p) {
-          partial = p;
-          notifyListeners();
-        },
-      );
-
-      if (!result.interrupted) break;
-      question = result.question.trim();
+    String reply;
+    try {
+      _history.add(ChatMessage(role: 'user', content: question));
+      // Keep the payload small for latency; backend trims further.
+      final window = _history.length > 12
+          ? _history.sublist(_history.length - 12)
+          : _history;
+      reply = await ApiService.sendChat(window);
+      _history.add(ChatMessage(role: 'assistant', content: reply));
+    } catch (_) {
+      reply = "I couldn't reach the assistant. Please check your connection.";
     }
+
+    state = OrbState.speaking;
+    lastReply = reply;
+    partial = '';
+    notifyListeners();
+    await _voice.speak(reply); // tap the orb to stop
   }
 
   /// Orb tap behaviour, mirroring the design doc.

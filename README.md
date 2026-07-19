@@ -112,6 +112,7 @@ Two engines are built in:
 Inside `<manifest>`:
 ```xml
 <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
 <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>

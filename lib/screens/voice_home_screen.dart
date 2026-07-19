@@ -185,7 +185,10 @@ class _VoiceHomeScreenState extends State<VoiceHomeScreen>
                                 size: 18, color: cs.primary),
                             const SizedBox(width: 8),
                             Text(
-                              a.sttLocaleName ?? 'Auto language',
+                              a.sttLocaleName ??
+                                  (a.autoLocaleName != null
+                                      ? 'Auto · ${a.autoLocaleName}'
+                                      : 'Auto language'),
                               style: const TextStyle(fontSize: 13.5),
                             ),
                           ],
