@@ -43,8 +43,10 @@ dependencies:
   flutter_phone_direct_caller: ^2.1.1
 
   # Reminder notifications — fire even when the app is closed
+  # (timezone MUST be ^0.10.x: pinning 0.9 silently downgrades
+  #  flutter_local_notifications to v17 and breaks the v18 API we use)
   flutter_local_notifications: ^18.0.1
-  timezone: ^0.9.4
+  timezone: ^0.10.0
   flutter_timezone: ^3.0.1
 
   # Updates

@@ -224,3 +224,11 @@ flutter run --dart-define=BASE_URL=http://<LAPTOP_LAN_IP>:3000 \
 - deps: + flutter_contacts, flutter_phone_direct_caller.
   ⚠ Manifest: READ_CONTACTS + CALL_PHONE (Android); NSContactsUsageDescription
   (iOS; iOS always shows the tel: confirmation — platform rule).
+
+## Fix — 19 July 2026: notification build failure
+- timezone ^0.9.4 → ^0.10.0. The 0.9 pin made pub downgrade
+  flutter_local_notifications to v17 (whose zonedSchedule requires
+  uiLocalNotificationDateInterpretation), breaking the v18-style call in
+  notification_service.dart. With timezone 0.10, fln resolves to 18 and the
+  existing code compiles. Run: flutter clean && flutter pub upgrade.
+- KGP warnings from plugins are non-blocking on current Flutter.
