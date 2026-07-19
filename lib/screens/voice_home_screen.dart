@@ -29,7 +29,9 @@ class _VoiceHomeScreenState extends State<VoiceHomeScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _assistant.init();
+    // Greet AFTER init so the mic and memory are ready — Hari says hello
+    // by name (and asks a get-to-know-you question on early sessions).
+    _assistant.init().then((_) => _assistant.greetOnLaunch());
   }
 
   @override

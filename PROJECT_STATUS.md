@@ -139,3 +139,26 @@ flutter run --dart-define=BASE_URL=http://<LAPTOP_LAN_IP>:3000 \
   dialog (saves with source=user), and confirmed "Forget all". Signed-out and
   offline states handled. No client changes needed for personalization itself —
   the backend injects memory into every /chat reply automatically.
+
+## Update — 19 July 2026 (2): Greeting + location + mic reliability fixes
+- **Greeting on sign-in/app open** — `AssistantController.greetOnLaunch()`
+  (triggered from Voice Home after init, once per signed-in user): fetches
+  /chat/greeting, speaks it, adds it to conversation history; if it ends with a
+  question the mic opens automatically so the answer teaches the memory
+  extractor. Re-greets when a different account signs in.
+- **Location actually accessed now** — `_detectRegionalLanguage` order flipped:
+  GPS (`RegionLanguage.candidates()`, triggers the permission dialog) FIRST,
+  IP lookup only as fallback. New `RegionLanguage.currentCity()` reverse-geocodes
+  "City, State" and it's saved to memory as `current_city` once per session.
+  ⚠ Requires ACCESS_COARSE_LOCATION (+ RECORD_AUDIO) in the locally generated
+  android/AndroidManifest.xml — android/ is not in the repo.
+- **Mic fixes** (the "turns on/off, doesn't recognise" bug):
+  1. VAD thresholds were fixed at −30 dBFS — quiet mics never triggered. Now
+     ADAPTIVE: ~600 ms ambient calibration, speech = floor +8 dB (clamped
+     −55…−22), no-speech window 6→8 s, live `micLevel` 0..1 for the orb.
+  2. When the VAD heard nothing, capture DEAD-ENDED. Now it falls back to the
+     device recognizer (unless the user cancelled — `lastRecordingCancelled`).
+  3. 250 ms mic hand-off delay between stopping wake recognition and starting
+     the recorder (they were fighting over the mic).
+  4. `VoiceService.reinit()` — mic permission granted after first denial no
+     longer requires an app restart (`ask()` retries init).

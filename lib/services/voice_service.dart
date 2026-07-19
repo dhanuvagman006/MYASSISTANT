@@ -86,6 +86,15 @@ class VoiceService {
 
   bool get isReady => _ready;
 
+  /// Re-attempt initialization — used when the user granted the mic
+  /// permission AFTER the first init failed (previously the app stayed
+  /// "Microphone unavailable" until a full restart).
+  Future<bool> reinit() async {
+    if (_ready) return true;
+    _ready = false;
+    return init();
+  }
+
   /// Languages the device recognizer can transcribe (for the picker).
   Future<List<stt.LocaleName>> sttLocales() async {
     if (!_ready) return const [];
@@ -369,8 +378,19 @@ class VoiceService {
     }
   }
 
+  /// True if the last recordUntilSilence ended because the user cancelled
+  /// (orb tap) rather than because no speech was detected. The controller
+  /// uses this to decide whether to fall back to the device recognizer.
+  bool get lastRecordingCancelled => _recCancelled;
+
   /// Records until the speaker goes quiet (or [maxSeconds]).
   /// Returns the file path, or null if nothing was said / cancelled.
+  ///
+  /// Voice activity detection is ADAPTIVE: mic sensitivity and reported
+  /// dBFS ranges vary wildly between devices, so fixed thresholds made
+  /// quiet phones "never hear" speech. Instead we sample the ambient
+  /// noise floor for the first ~600 ms and require speech to rise a fixed
+  /// margin ABOVE that floor.
   Future<String?> recordUntilSilence({
     int maxSeconds = 15,
     void Function(double level)? onLevel, // 0..1 for UI animation
@@ -393,29 +413,51 @@ class VoiceService {
         path: path,
       );
 
-      const speechDb = -30.0; // above this = talking
-      const quietDb = -38.0; // below this = silence
+      // --- calibrate the ambient noise floor (~600 ms) ---
+      var floor = -50.0;
+      var floorSamples = 0;
+      var totalMs = 0;
+      while (totalMs < 600) {
+        await Future.delayed(const Duration(milliseconds: 150));
+        totalMs += 150;
+        if (_recCancelled) break;
+        try {
+          final db = (await _rec.getAmplitude()).current;
+          if (db.isFinite && db > -120) {
+            floor = floorSamples == 0 ? db : (floor * 0.6 + db * 0.4);
+            floorSamples++;
+          }
+        } catch (_) {}
+      }
+      // Speech must rise 8 dB above ambient; never demand louder than
+      // -22 dBFS (loud rooms) and never accept quieter than -55 (noise).
+      final speechDb = (floor + 8.0).clamp(-55.0, -22.0);
+      final quietDb = speechDb - 5.0;
+
       var started = false;
       var silentMs = 0;
-      var totalMs = 0;
 
       while (totalMs < maxSeconds * 1000) {
         await Future.delayed(const Duration(milliseconds: 200));
         totalMs += 200;
         if (_recCancelled || !await _rec.isRecording()) break;
 
-        final amp = await _rec.getAmplitude();
-        final db = amp.current;
-        // Map roughly -50..0 dBFS to 0..1 for the orb animation.
-        onLevel?.call(((db + 50) / 50).clamp(0.0, 1.0));
+        double db;
+        try {
+          db = (await _rec.getAmplitude()).current;
+        } catch (_) {
+          continue;
+        }
+        // Map roughly floor..0 dBFS to 0..1 for the orb animation.
+        onLevel?.call(((db - floor) / (0 - floor)).clamp(0.0, 1.0));
 
         if (db > speechDb) {
           started = true;
           silentMs = 0;
         } else if (db < quietDb) {
           silentMs += 200;
-          // No speech at all for 6s -> give up quietly.
-          if (!started && totalMs >= 6000) break;
+          // No speech at all for 8s -> give up quietly.
+          if (!started && totalMs >= 8000) break;
           // Finished talking: 1.6s of silence after speech.
           if (started && silentMs >= 1600) break;
         }

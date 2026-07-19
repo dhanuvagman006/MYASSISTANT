@@ -7,6 +7,7 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 import '../models/chat_message.dart';
 import 'api_service.dart';
+import 'auth_service.dart';
 import 'region_language.dart';
 import 'voice_service.dart';
 
@@ -42,6 +43,10 @@ class AssistantController extends ChangeNotifier {
   String partial = '';
   String? lastHeard;
   String? lastReply;
+
+  /// Live input loudness 0..1 while recording — drives the orb pulse so
+  /// the user can SEE the mic is hearing them.
+  double micLevel = 0;
 
   /// Recognizer language chosen by the user in the picker (persisted).
   /// null = Auto: use the regional language detected from location,
@@ -91,16 +96,24 @@ class AssistantController extends ChangeNotifier {
   /// Karnataka -> Kannada, Kerala -> Malayalam, etc. Only applies while
   /// the user hasn't picked a language themselves, and only if the
   /// device recognizer actually supports the regional locale.
+  ///
+  /// ORDER MATTERS: GPS runs FIRST so the location permission dialog
+  /// actually appears (previously the IP path usually succeeded and the
+  /// app never touched location at all). IP stays as the no-permission
+  /// fallback. As a side effect the resolved city is saved to the user's
+  /// memory so Hari can personalize ("weather in Mysuru" etc.).
   Future<void> _detectRegionalLanguage() async {
     if (sttLocaleId != null) return; // user's explicit choice wins
     if (autoLocaleId != null) return; // conversation already set a language
     try {
-      // 1) IP-based, via the backend — zero permissions, works everywhere.
-      // 2) GPS bounding boxes, if the backend can't resolve it.
-      final wanted = <String>[];
-      final byIp = await ApiService.fetchRegionLocale();
-      if (byIp != null) wanted.add(byIp);
-      if (wanted.isEmpty) wanted.addAll(await RegionLanguage.candidates());
+      // 1) Device location (asks permission on first run).
+      final wanted = <String>[...await RegionLanguage.candidates()];
+      // 2) IP-based via the backend — zero permissions, works everywhere.
+      if (wanted.isEmpty) {
+        final byIp = await ApiService.fetchRegionLocale();
+        if (byIp != null) wanted.add(byIp);
+      }
+      _saveCityToMemory(); // fire-and-forget; reuses the same fix/permission
       if (wanted.isEmpty) return;
       final supported = await _voice.sttLocales();
       if (supported.isEmpty) return;
@@ -125,6 +138,64 @@ class AssistantController extends ChangeNotifier {
         }
       }
     } catch (_) {}
+  }
+
+  /// Saves the user's current city into their backend memory (at most
+  /// once per app session) so replies can be location-aware.
+  bool _citySaved = false;
+  Future<void> _saveCityToMemory() async {
+    if (_citySaved) return;
+    _citySaved = true;
+    try {
+      final city = await RegionLanguage.currentCity();
+      if (city != null) {
+        await ApiService.addMemory('current_city', 'Is currently in $city',
+            category: 'context');
+      }
+    } catch (_) {
+      _citySaved = false; // retry next session
+    }
+  }
+
+  // ---------------- GREETING ON SIGN-IN / APP OPEN ----------------
+
+  bool _greeted = false;
+  int? _greetedUserId;
+
+  /// Speaks a personalized hello once per app session. The text comes
+  /// from the backend (built from the user's memory); when Hari barely
+  /// knows the user it ends with ONE get-to-know-you question — in that
+  /// case the mic opens automatically so the answer flows through the
+  /// normal /chat loop and the memory extractor learns from it.
+  Future<void> greetOnLaunch() async {
+    final uid = AuthService.instance.user?.id;
+    if (uid != null && uid != _greetedUserId) _greeted = false; // new account
+    if (_greeted || !micReady || state != OrbState.idle) return;
+    _greeted = true;
+    _greetedUserId = uid;
+
+    final greeting = await ApiService.fetchGreeting();
+    if (greeting == null || state != OrbState.idle) return;
+
+    await _pauseWake();
+    state = OrbState.speaking;
+    lastReply = greeting;
+    // The greeting is part of the conversation — the AI must remember
+    // what it asked when the user's answer arrives.
+    _history.add(ChatMessage(role: 'assistant', content: greeting));
+    notifyListeners();
+
+    await _voice.speak(greeting);
+
+    state = OrbState.idle;
+    notifyListeners();
+
+    if (greeting.contains('?')) {
+      // Hari asked something — listen for the answer right away.
+      await ask();
+    } else {
+      await _startWake();
+    }
   }
 
   Future<void> _initPorcupine() async {
@@ -214,8 +285,19 @@ class AssistantController extends ChangeNotifier {
   // ---------------- THE ANSWER LOOP ----------------
 
   Future<void> ask() async {
-    if (!micReady || state != OrbState.idle) return;
+    // A denied-then-granted mic permission used to leave the app stuck on
+    // "Microphone unavailable" until restart — retry initialization here.
+    if (!micReady) {
+      micReady = await _voice.reinit();
+      notifyListeners();
+      if (!micReady) return;
+    }
+    if (state != OrbState.idle) return;
     await _pauseWake();
+    // Let the wake recognizer fully release the microphone before the
+    // recorder grabs it — starting both back-to-back made the mic flap
+    // on/off and miss the first words on many devices.
+    await Future.delayed(const Duration(milliseconds: 250));
 
     state = OrbState.listening;
     partial = '';
@@ -238,28 +320,43 @@ class AssistantController extends ChangeNotifier {
   Future<String> _captureAnyLanguage() async {
     // 1) Cloud path (preferred).
     if (await _voice.canRecord()) {
-      final path = await _voice.recordUntilSilence(onLevel: (_) {});
-      if (path == null) return ''; // silence or cancelled — back to idle
-      partial = '…';
-      notifyListeners();
-      try {
-        return await ApiService.transcribe(
-          path,
-          // Manual pick in "I speak…" = lock transcription to it.
-          forceLanguage: _iso(sttLocaleId),
-          // Auto + known region = bias detection (Kannada wins over the
-          // Hindi misdetection, but English/Hindi speech still works).
-          hintLanguage: sttLocaleId == null ? _iso(autoLocaleId) : null,
-        );
-      } catch (_) {
-        // Server unreachable AFTER the user already spoke — ask them to
-        // repeat once via the device recognizer instead of going mute.
-        partial = '';
+      final path = await _voice.recordUntilSilence(
+        onLevel: (l) {
+          micLevel = l;
+          notifyListeners();
+        },
+      );
+      micLevel = 0;
+      if (path == null) {
+        // User cancelled (orb tap) → genuinely stop.
+        if (_voice.lastRecordingCancelled) return '';
+        // VAD heard nothing — DON'T give up silently anymore. The old
+        // behaviour ("mic turns on and off but nothing happens") ended
+        // here; now we hand over to the device recognizer, which has its
+        // own tuned endpointing and often hears what the VAD missed.
+      } else {
+        partial = '…';
         notifyListeners();
+        try {
+          return await ApiService.transcribe(
+            path,
+            // Manual pick in "I speak…" = lock transcription to it.
+            forceLanguage: _iso(sttLocaleId),
+            // Auto + known region = bias detection (Kannada wins over the
+            // Hindi misdetection, but English/Hindi speech still works).
+            hintLanguage: sttLocaleId == null ? _iso(autoLocaleId) : null,
+          );
+        } catch (_) {
+          // Server unreachable AFTER the user already spoke — ask them to
+          // repeat once via the device recognizer instead of going mute.
+          partial = '';
+          notifyListeners();
+        }
       }
     }
 
-    // 2) Device recognizer (recorder unavailable, or cloud STT failed).
+    // 2) Device recognizer (recorder unavailable, VAD missed the speech,
+    //    or cloud STT failed).
     return _voice.captureQuestion(
       localeId: effectiveLocaleId,
       onPartial: (p) {

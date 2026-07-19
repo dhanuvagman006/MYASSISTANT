@@ -123,6 +123,22 @@ class ApiService {
     return (jsonDecode(r.body)['reply'] as String?) ?? '';
   }
 
+  /// Personalized spoken greeting for app open / sign-in. The backend
+  /// builds it from the user's memory; if Hari barely knows them, the
+  /// greeting includes one get-to-know-you question.
+  static Future<String?> fetchGreeting() async {
+    try {
+      final r = await http
+          .post(Uri.parse('$baseUrl/chat/greeting'), headers: _authHeaders)
+          .timeout(const Duration(seconds: 15));
+      if (r.statusCode != 200) return null;
+      final g = (jsonDecode(r.body)['greeting'] as String?)?.trim();
+      return (g == null || g.isEmpty) ? null : g;
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ---------------- PER-USER MEMORY ----------------
   // Backs the "Privacy & memory → WHAT I REMEMBER" screen. All calls
   // require a signed-in session (memory is per-account, not per-device).

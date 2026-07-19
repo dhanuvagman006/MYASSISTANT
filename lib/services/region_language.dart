@@ -75,6 +75,39 @@ class RegionLanguage {
     return null;
   }
 
+  /// Best-effort "City, Region" for where the user is right now — used to
+  /// personalize memory ('current_city'). Requests location permission if
+  /// needed. Returns null when unavailable/denied.
+  static Future<String?> currentCity() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) return null;
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
+        return null;
+      }
+      Position? pos = await Geolocator.getLastKnownPosition();
+      pos ??= await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.low),
+      ).timeout(const Duration(seconds: 10));
+
+      final marks = await placemarkFromCoordinates(pos.latitude, pos.longitude);
+      if (marks.isEmpty) return null;
+      final m = marks.first;
+      final city = (m.locality?.isNotEmpty == true)
+          ? m.locality!
+          : (m.subAdministrativeArea ?? '');
+      final region = m.administrativeArea ?? '';
+      if (city.isEmpty && region.isEmpty) return null;
+      return [city, region].where((s) => s.isNotEmpty).join(', ');
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Ordered locale candidates for where the user is right now
   /// (state language first, then country language). Empty if location
   /// is unavailable or permission is denied.
