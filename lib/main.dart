@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'models/remote_config.dart';
+import 'screens/auth/auth_screen.dart';
 import 'screens/calls_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/daily_screen.dart';
@@ -11,10 +12,14 @@ import 'screens/privacy_screen.dart';
 import 'screens/smart_home_screen.dart';
 import 'screens/voice_home_screen.dart';
 import 'services/api_service.dart';
+import 'services/auth_service.dart';
 import 'theme/app_theme.dart';
 import 'widgets/update_button.dart';
 
-void main() => runApp(const MyAssistantApp());
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const MyAssistantApp());
+}
 
 class MyAssistantApp extends StatelessWidget {
   const MyAssistantApp({super.key});
@@ -26,8 +31,53 @@ class MyAssistantApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      home: const HomeShell(),
+      home: const AuthGate(),
     );
+  }
+}
+
+/// Decides the first screen: splash while restoring the session, then
+/// AuthScreen (signed out) or HomeShell (signed in). Listens to
+/// AuthService so sign-in and sign-out swap screens automatically.
+class AuthGate extends StatefulWidget {
+  const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  bool _restoring = true;
+
+  @override
+  void initState() {
+    super.initState();
+    AuthService.instance.addListener(_onAuthChanged);
+    AuthService.instance.init().whenComplete(() {
+      if (mounted) setState(() => _restoring = false);
+    });
+  }
+
+  @override
+  void dispose() {
+    AuthService.instance.removeListener(_onAuthChanged);
+    super.dispose();
+  }
+
+  void _onAuthChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_restoring) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    return AuthService.instance.isSignedIn
+        ? const HomeShell()
+        : const AuthScreen();
   }
 }
 
@@ -88,7 +138,32 @@ class _HomeShellState extends State<HomeShell> {
             const Text('MyAssistant'),
           ],
         ),
-        actions: [UpdateButton(config: _config), const SizedBox(width: 8)],
+        actions: [
+          UpdateButton(config: _config),
+          IconButton(
+            tooltip: 'Sign out',
+            icon: const Icon(Icons.logout_rounded),
+            onPressed: () async {
+              final ok = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Sign out?'),
+                  content: const Text('You can sign back in any time.'),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Cancel')),
+                    FilledButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('Sign out')),
+                  ],
+                ),
+              );
+              if (ok == true) await AuthService.instance.signOut();
+            },
+          ),
+          const SizedBox(width: 4),
+        ],
       ),
       body: Column(
         children: [

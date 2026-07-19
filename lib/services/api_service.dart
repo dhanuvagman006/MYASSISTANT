@@ -19,12 +19,13 @@ class ApiService {
   /// Pass with: --dart-define=APP_API_KEY=...
   static const String _appApiKey = String.fromEnvironment('APP_API_KEY');
 
-  /// Google ID token, set after sign-in (F1). Takes priority over the app key.
-  static String? googleIdToken;
+  /// Session JWT issued by the backend after any sign-in (email/Google/Apple).
+  /// Managed by AuthService — set on sign-in, cleared on sign-out.
+  static String? sessionToken;
 
   static Map<String, String> get _authHeaders => {
         'Content-Type': 'application/json',
-        if (googleIdToken != null) 'Authorization': 'Bearer $googleIdToken'
+        if (sessionToken != null) 'Authorization': 'Bearer $sessionToken'
         else if (_appApiKey.isNotEmpty) 'X-App-Key': _appApiKey,
       };
 
