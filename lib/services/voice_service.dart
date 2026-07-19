@@ -304,6 +304,7 @@ class VoiceService {
   Future<String> captureQuestion({
     String? localeId,
     void Function(String partial)? onPartial,
+    void Function(double level)? onLevel, // 0..1 for the orb animation
   }) async {
     if (!_ready) return '';
     await stopWatching();
@@ -320,6 +321,9 @@ class VoiceService {
           completer.complete(last.trim());
         }
       },
+      // Android reports rms roughly -2..10 dB — map to 0..1.
+      onSoundLevelChange: (db) =>
+          onLevel?.call(((db + 2) / 12).clamp(0.0, 1.0)),
       listenOptions: stt.SpeechListenOptions(
         partialResults: true,
         listenMode: stt.ListenMode.dictation,

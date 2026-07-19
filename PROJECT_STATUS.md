@@ -162,3 +162,10 @@ flutter run --dart-define=BASE_URL=http://<LAPTOP_LAN_IP>:3000 \
      the recorder (they were fighting over the mic).
   4. `VoiceService.reinit()` — mic permission granted after first denial no
      longer requires an app restart (`ask()` retries init).
+
+## Update — 19 July 2026 (3): Voice-reactive orb
+- `_BloomOrb` now takes `level` (AssistantController.micLevel, 0..1, both
+  capture paths — cloud recorder amplitude AND device recognizer
+  onSoundLevelChange). While listening: marigold voice halo blooms with
+  loudness, rings and core scale up, glow deepens/spreads. Samples (~5 Hz)
+  smoothed with a 180 ms TweenAnimationBuilder so motion is fluid.

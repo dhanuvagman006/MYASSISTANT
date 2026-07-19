@@ -122,6 +122,7 @@ class _VoiceHomeScreenState extends State<VoiceHomeScreen>
                     child: _BloomOrb(
                       state: a.state,
                       pulse: _pulse,
+                      level: a.state == OrbState.listening ? a.micLevel : 0.0,
                       onTap: a.tapOrb,
                     ),
                   ),
@@ -270,10 +271,18 @@ class _TranscriptCard extends StatelessWidget {
 class _BloomOrb extends StatelessWidget {
   final OrbState state;
   final AnimationController pulse;
+
+  /// Live microphone loudness 0..1 while listening — the orb visibly
+  /// "hears": a marigold halo blooms and the glow deepens with the voice,
+  /// so the user gets instant feedback that the mic is picking them up.
+  final double level;
   final VoidCallback onTap;
 
   const _BloomOrb(
-      {required this.state, required this.pulse, required this.onTap});
+      {required this.state,
+      required this.pulse,
+      this.level = 0,
+      required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -282,62 +291,89 @@ class _BloomOrb extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, box) {
         final size = box.biggest.shortestSide.clamp(190.0, 290.0);
-        return AnimatedBuilder(
-          animation: pulse,
-          builder: (context, _) {
-            final scale = animate ? 1 + (pulse.value * 0.07) : 1.0;
-            return SizedBox(
-              width: size,
-              height: size,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Transform.scale(
-                    scale: scale,
-                    child:
-                        _ring(size, AppColors.marigold.withValues(alpha: 0.35)),
-                  ),
-                  _ring(size * 0.82, AppColors.marigold.withValues(alpha: 0.7)),
-                  Transform.scale(
-                    scale: scale,
-                    child: GestureDetector(
-                      onTap: onTap,
-                      child: Container(
-                        width: size * 0.62,
-                        height: size * 0.62,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: const RadialGradient(
-                            center: Alignment(-0.3, -0.4),
-                            colors: [
-                              AppColors.peacockLight,
-                              AppColors.peacockDeep
-                            ],
+        // Smooth the ~5 Hz level samples into a fluid motion.
+        return TweenAnimationBuilder<double>(
+          tween: Tween(end: level.clamp(0.0, 1.0)),
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          builder: (context, lvl, _) {
+            return AnimatedBuilder(
+              animation: pulse,
+              builder: (context, _) {
+                // Baseline breathing + voice on top of it.
+                final scale =
+                    (animate ? 1 + (pulse.value * 0.05) : 1.0) + lvl * 0.16;
+                return SizedBox(
+                  width: size,
+                  height: size,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // VOICE HALO — only visible while sound is coming in.
+                      if (state == OrbState.listening)
+                        Container(
+                          width: size * (0.70 + lvl * 0.30),
+                          height: size * (0.70 + lvl * 0.30),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppColors.marigold
+                                .withValues(alpha: 0.06 + lvl * 0.22),
                           ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.peacock.withValues(alpha: 0.45),
-                              blurRadius: 48,
-                              offset: const Offset(0, 12),
-                            ),
-                          ],
                         ),
-                        child: Icon(
-                          switch (state) {
-                            OrbState.idle => Icons.mic_none_rounded,
-                            OrbState.thinking => Icons.more_horiz_rounded,
-                            _ => Icons.graphic_eq_rounded,
-                          },
-                          size: size * 0.20,
-                          color: state == OrbState.speaking
-                              ? AppColors.marigold
-                              : Colors.white,
+                      Transform.scale(
+                        scale: scale,
+                        child: _ring(size,
+                            AppColors.marigold.withValues(alpha: 0.35)),
+                      ),
+                      Transform.scale(
+                        scale: 1 + lvl * 0.08,
+                        child: _ring(size * 0.82,
+                            AppColors.marigold.withValues(alpha: 0.7)),
+                      ),
+                      Transform.scale(
+                        scale: scale,
+                        child: GestureDetector(
+                          onTap: onTap,
+                          child: Container(
+                            width: size * 0.62,
+                            height: size * 0.62,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: const RadialGradient(
+                                center: Alignment(-0.3, -0.4),
+                                colors: [
+                                  AppColors.peacockLight,
+                                  AppColors.peacockDeep
+                                ],
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.peacock
+                                      .withValues(alpha: 0.45 + lvl * 0.25),
+                                  blurRadius: 48 + lvl * 30,
+                                  spreadRadius: lvl * 6,
+                                  offset: const Offset(0, 12),
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              switch (state) {
+                                OrbState.idle => Icons.mic_none_rounded,
+                                OrbState.thinking => Icons.more_horiz_rounded,
+                                _ => Icons.graphic_eq_rounded,
+                              },
+                              size: size * 0.20,
+                              color: state == OrbState.speaking
+                                  ? AppColors.marigold
+                                  : Colors.white,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
+                );
+              },
             );
           },
         );

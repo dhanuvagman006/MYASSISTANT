@@ -357,13 +357,19 @@ class AssistantController extends ChangeNotifier {
 
     // 2) Device recognizer (recorder unavailable, VAD missed the speech,
     //    or cloud STT failed).
-    return _voice.captureQuestion(
+    final q = await _voice.captureQuestion(
       localeId: effectiveLocaleId,
       onPartial: (p) {
         partial = p;
         notifyListeners();
       },
+      onLevel: (l) {
+        micLevel = l;
+        notifyListeners();
+      },
     );
+    micLevel = 0;
+    return q;
   }
 
   /// 'kn_IN' / 'kn-IN' -> 'kn' (ISO-639-1 for Whisper). null-safe.
