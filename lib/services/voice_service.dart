@@ -350,9 +350,43 @@ class VoiceService {
 
   /// Speaks [text] in a voice matching its language.
   Future<void> speak(String text) async {
-    if (text.isEmpty) return;
-    await _applyLanguageFor(text);
-    await _tts.speak(text);
+    final say = sanitizeForSpeech(text);
+    if (say.isEmpty) return;
+    await _applyLanguageFor(say);
+    await _tts.speak(say);
+  }
+
+  /// Cleans a reply before it is read aloud (the FULL text is still
+  /// shown in the transcript card):
+  ///  • If the reply is mostly in a non-Latin script (Kannada, Hindi…),
+  ///    drop parenthesised Latin-only chunks — models love adding
+  ///    "(Namaskara! ...)" transliterations, which made TTS speak the
+  ///    answer twice, once in the language and once in English.
+  ///  • Strip leftover markdown symbols that TTS would read out.
+  static String sanitizeForSpeech(String text) {
+    var t = text.trim();
+    if (t.isEmpty) return t;
+
+    final lang = detectLanguage(t);
+    final nonLatin = !lang.startsWith('en') && _scriptRanges.containsKey(lang);
+    if (nonLatin) {
+      t = t.replaceAllMapped(RegExp(r'[(（]([^)）]*)[)）]'), (m) {
+        final inside = m[1] ?? '';
+        var latin = 0, other = 0;
+        for (final c in inside.runes) {
+          if ((c >= 0x41 && c <= 0x5A) || (c >= 0x61 && c <= 0x7A)) {
+            latin++;
+          } else if (c > 0x7F) {
+            other++;
+          }
+        }
+        // Latin-only chunk inside a non-Latin reply = transliteration.
+        return (latin > 0 && other == 0) ? '' : m[0]!;
+      });
+    }
+    t = t.replaceAll(RegExp(r'[*_#`>|]+'), ' ');
+    t = t.replaceAll(RegExp(r'\s{2,}'), ' ').trim();
+    return t;
   }
 
   Future<void> stopSpeaking() => _tts.stop();

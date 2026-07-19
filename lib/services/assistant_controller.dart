@@ -253,11 +253,46 @@ class AssistantController extends ChangeNotifier {
       reply = "I couldn't reach the assistant. Please check your connection.";
     }
 
+    // FOLLOW THE CONVERSATION'S LANGUAGE: if Hari answered in Kannada,
+    // listen in Kannada next time — this is what makes "speak in
+    // Kannada" (said in any language) actually switch the whole loop,
+    // independent of location. A manual pick still overrides.
+    _followReplyLanguage(reply);
+
     state = OrbState.speaking;
     lastReply = reply;
     partial = '';
     notifyListeners();
     await _voice.speak(reply); // tap the orb to stop
+  }
+
+  List<stt.LocaleName>? _supportedLocales;
+
+  Future<void> _followReplyLanguage(String reply) async {
+    if (sttLocaleId != null) return; // user's explicit choice wins
+    try {
+      final lang = VoiceService.detectLanguage(reply); // e.g. kn-IN
+      _supportedLocales ??= await _voice.sttLocales();
+      final supported = _supportedLocales ?? const [];
+
+      String norm(String id) => id.toLowerCase().replaceAll('-', '_');
+      final want = norm(lang);
+      stt.LocaleName? pick;
+      for (final l in supported) {
+        final id = norm(l.localeId);
+        if (id == want) {
+          pick = l;
+          break;
+        }
+        pick ??=
+            id.split('_').first == want.split('_').first ? l : pick;
+      }
+      if (pick != null && pick.localeId != autoLocaleId) {
+        autoLocaleId = pick.localeId;
+        autoLocaleName = pick.name;
+        notifyListeners();
+      }
+    } catch (_) {}
   }
 
   /// Orb tap behaviour, mirroring the design doc.
