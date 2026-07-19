@@ -35,7 +35,7 @@ dependencies:
   # Cloud speech-to-text (Whisper via backend /stt) — records the
   # question as m4a; auto language detection, replaces flaky on-device
   # regional recognition. Device STT stays as wake word + fallback.
-  record: ^5.1.2
+  record: ^6.1.1
   path_provider: ^2.1.4
 
   # Updates
