@@ -217,24 +217,6 @@ class _TranscriptCard extends StatelessWidget {
   final String? reply;
   const _TranscriptCard({required this.heard, this.reply});
 
-  Future<void> _pickLanguage(BuildContext context) async {
-    final locales = await _assistant.availableLanguages();
-    if (!context.mounted) return;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => _LanguageSheet(
-        locales: locales,
-        selectedId: _assistant.sttLocaleId,
-        onSelect: (id, name) {
-          _assistant.setSttLocale(id, name);
-          Navigator.pop(context);
-        },
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
