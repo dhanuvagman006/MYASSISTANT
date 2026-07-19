@@ -8,6 +8,7 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../models/chat_message.dart';
 import 'api_service.dart';
 import 'auth_service.dart';
+import 'notification_service.dart';
 import 'region_language.dart';
 import 'voice_service.dart';
 
@@ -85,6 +86,7 @@ class AssistantController extends ChangeNotifier {
     } catch (_) {}
 
     micReady = await _voice.init();
+    ReminderNotifications.instance.sync(); // permissions + schedules
     await _initPorcupine();
     if (micReady && wakeEnabled) await _startWake();
     notifyListeners();
@@ -113,6 +115,9 @@ class AssistantController extends ChangeNotifier {
         final byIp = await ApiService.fetchRegionLocale();
         if (byIp != null) wanted.add(byIp);
       }
+      // Share the fix with the API layer → weather headers on every chat.
+      ApiService.geoLat = RegionLanguage.lastLat;
+      ApiService.geoLng = RegionLanguage.lastLng;
       _saveCityToMemory(); // fire-and-forget; reuses the same fix/permission
       if (wanted.isEmpty) return;
       final supported = await _voice.sttLocales();
@@ -148,6 +153,8 @@ class AssistantController extends ChangeNotifier {
     _citySaved = true;
     try {
       final city = await RegionLanguage.currentCity();
+      ApiService.geoLat = RegionLanguage.lastLat;
+      ApiService.geoLng = RegionLanguage.lastLng;
       if (city != null) {
         await ApiService.addMemory('current_city', 'Is currently in $city',
             category: 'context');
@@ -412,6 +419,11 @@ class AssistantController extends ChangeNotifier {
     lastReply = reply;
     partial = '';
     notifyListeners();
+
+    // "Remind me to…" may have just created a reminder server-side —
+    // resync so the phone schedules its notification immediately.
+    ReminderNotifications.instance.sync();
+
     await _voice.speak(reply); // tap the orb to stop
   }
 

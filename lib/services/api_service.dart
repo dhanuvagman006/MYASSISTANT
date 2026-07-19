@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import '../models/chat_message.dart';
 import '../models/memory_item.dart';
+import '../models/reminder.dart';
 import '../models/remote_config.dart';
 
 /// All network traffic goes app → backend → AI providers.
@@ -25,10 +26,24 @@ class ApiService {
   /// Managed by AuthService — set on sign-in, cleared on sign-out.
   static String? sessionToken;
 
+  /// Last known GPS fix — set by AssistantController from RegionLanguage;
+  /// lets the backend answer "what's the weather" without a city name.
+  static double? geoLat;
+  static double? geoLng;
+
   static Map<String, String> get _authHeaders => {
         'Content-Type': 'application/json',
         if (sessionToken != null) 'Authorization': 'Bearer $sessionToken'
         else if (_appApiKey.isNotEmpty) 'X-App-Key': _appApiKey,
+      };
+
+  /// Chat calls also carry the user's clock + location so backend tools
+  /// (reminder time parsing, weather) work on THEIR wall clock and place.
+  static Map<String, String> get _chatHeaders => {
+        ..._authHeaders,
+        'X-TZ-Offset': DateTime.now().timeZoneOffset.inMinutes.toString(),
+        if (geoLat != null) 'X-Geo-Lat': geoLat!.toStringAsFixed(4),
+        if (geoLng != null) 'X-Geo-Lng': geoLng!.toStringAsFixed(4),
       };
 
   static RemoteConfig config = const RemoteConfig();
@@ -106,7 +121,7 @@ class ApiService {
     final r = await http
         .post(
           Uri.parse('$baseUrl/chat'),
-          headers: _authHeaders,
+          headers: _chatHeaders,
           body: jsonEncode({
             'messages': history.map((m) => m.toJson()).toList(),
             'language': 'auto',
@@ -176,6 +191,81 @@ class ApiService {
         .delete(Uri.parse('$baseUrl/memory/$id'), headers: _authHeaders)
         .timeout(const Duration(seconds: 15));
     if (r.statusCode != 200) throw Exception('Could not delete (${r.statusCode})');
+  }
+
+  // ---------------- REMINDERS ----------------
+
+  static Future<List<Reminder>> fetchReminders() async {
+    final r = await http
+        .get(Uri.parse('$baseUrl/reminders'), headers: _authHeaders)
+        .timeout(const Duration(seconds: 15));
+    if (r.statusCode != 200) throw Exception('reminders ${r.statusCode}');
+    return ((jsonDecode(r.body)['reminders'] as List?) ?? [])
+        .map((j) => Reminder.fromJson(j as Map<String, dynamic>))
+        .toList();
+  }
+
+  static Future<Reminder> createReminder(String text, DateTime? dueAt) async {
+    final r = await http
+        .post(
+          Uri.parse('$baseUrl/reminders'),
+          headers: _authHeaders,
+          body: jsonEncode({
+            'text': text,
+            if (dueAt != null) 'dueAt': dueAt.millisecondsSinceEpoch,
+          }),
+        )
+        .timeout(const Duration(seconds: 15));
+    if (r.statusCode != 200) throw Exception('reminders ${r.statusCode}');
+    return Reminder.fromJson(jsonDecode(r.body)['reminder']);
+  }
+
+  static Future<void> setReminderDone(int id, bool done) async {
+    await http
+        .patch(
+          Uri.parse('$baseUrl/reminders/$id'),
+          headers: _authHeaders,
+          body: jsonEncode({'done': done}),
+        )
+        .timeout(const Duration(seconds: 15));
+  }
+
+  static Future<void> deleteReminder(int id) async {
+    await http
+        .delete(Uri.parse('$baseUrl/reminders/$id'), headers: _authHeaders)
+        .timeout(const Duration(seconds: 15));
+  }
+
+  // ---------------- TODAY-SCREEN LIVE DATA ----------------
+
+  /// Weather for the Today card. Uses the last GPS fix, else [city].
+  static Future<Map<String, dynamic>?> fetchWeather({String? city}) async {
+    try {
+      final q = geoLat != null
+          ? 'lat=$geoLat&lng=$geoLng'
+          : (city != null ? 'city=${Uri.encodeComponent(city)}' : null);
+      if (q == null) return null;
+      final r = await http
+          .get(Uri.parse('$baseUrl/tools/weather?$q'), headers: _authHeaders)
+          .timeout(const Duration(seconds: 12));
+      if (r.statusCode != 200) return null;
+      return jsonDecode(r.body) as Map<String, dynamic>;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> fetchNews() async {
+    try {
+      final r = await http
+          .get(Uri.parse('$baseUrl/tools/news'), headers: _authHeaders)
+          .timeout(const Duration(seconds: 12));
+      if (r.statusCode != 200) return const [];
+      return ((jsonDecode(r.body)['headlines'] as List?) ?? [])
+          .cast<Map<String, dynamic>>();
+    } catch (_) {
+      return const [];
+    }
   }
 
   /// One sign-up interview answer → the backend extracts durable facts

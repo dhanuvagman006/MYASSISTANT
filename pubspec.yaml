@@ -38,6 +38,11 @@ dependencies:
   record: ^6.1.1
   path_provider: ^2.1.4
 
+  # Reminder notifications — fire even when the app is closed
+  flutter_local_notifications: ^18.0.1
+  timezone: ^0.9.4
+  flutter_timezone: ^3.0.1
+
   # Updates
   package_info_plus: ^8.0.2      # reads the installed version
   url_launcher: ^6.3.0           # opens App Store on iOS

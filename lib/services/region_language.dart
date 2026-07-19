@@ -15,6 +15,11 @@ import 'package:geolocator/geolocator.dart';
 class RegionLanguage {
   RegionLanguage._();
 
+  /// Last successful GPS fix — reused for weather ("X-Geo-*" chat headers
+  /// and the Today screen) without another location request.
+  static double? lastLat;
+  static double? lastLng;
+
   /// (minLat, maxLat, minLng, maxLng, locale) — checked IN ORDER, first
   /// hit wins. Boxes overlap at borders; the order resolves the common
   /// cities correctly (Bengaluru→kn, Chennai→ta, Hyderabad→te,
@@ -93,6 +98,8 @@ class RegionLanguage {
       pos ??= await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.low),
       ).timeout(const Duration(seconds: 10));
+      lastLat = pos.latitude;
+      lastLng = pos.longitude;
 
       final marks = await placemarkFromCoordinates(pos.latitude, pos.longitude);
       if (marks.isEmpty) return null;
@@ -133,6 +140,8 @@ class RegionLanguage {
       ).timeout(const Duration(seconds: 10));
 
       final lat = pos.latitude, lng = pos.longitude;
+      lastLat = lat;
+      lastLng = lng;
       final out = <String>[];
 
       if (_inIndia(lat, lng)) {

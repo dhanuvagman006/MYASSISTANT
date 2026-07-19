@@ -183,3 +183,16 @@ flutter run --dart-define=BASE_URL=http://<LAPTOP_LAN_IP>:3000 \
   memory extractor with `force:true` (no throttle); if extraction yields nothing
   (e.g. no AI keys) the raw answer is stored keyed by the question, so nothing
   is lost. After the interview the greeting is naturally personal.
+
+## Update — 19 July 2026 (5): Assistant tools (app side)
+- **Voice reminders end-to-end** — /chat now sends X-TZ-Offset + X-Geo-Lat/Lng;
+  backend intents create reminders; after every answer the app resyncs and
+  (re)schedules LOCAL notifications (`services/notification_service.dart`,
+  flutter_local_notifications + timezone + flutter_timezone; exact alarms,
+  boot-persistent). ⚠ Manifest additions required — documented in the service
+  header (POST_NOTIFICATIONS, SCHEDULE_EXACT_ALARM, two receivers).
+- **Today screen LIVE** (`screens/daily_screen.dart` rewrite): weather card
+  (now + 3-day, icons), reminders with add(+ date/time picker)/complete/delete
+  synced to /reminders, top headlines. Pull-to-refresh.
+- `models/reminder.dart`; ApiService: reminders CRUD, fetchWeather, fetchNews;
+  RegionLanguage caches lastLat/lastLng → ApiService.geo.
