@@ -243,7 +243,14 @@ class AssistantController extends ChangeNotifier {
       partial = '…';
       notifyListeners();
       try {
-        return await ApiService.transcribe(path);
+        return await ApiService.transcribe(
+          path,
+          // Manual pick in "I speak…" = lock transcription to it.
+          forceLanguage: _iso(sttLocaleId),
+          // Auto + known region = bias detection (Kannada wins over the
+          // Hindi misdetection, but English/Hindi speech still works).
+          hintLanguage: sttLocaleId == null ? _iso(autoLocaleId) : null,
+        );
       } catch (_) {
         // Server unreachable AFTER the user already spoke — ask them to
         // repeat once via the device recognizer instead of going mute.
@@ -260,6 +267,13 @@ class AssistantController extends ChangeNotifier {
         notifyListeners();
       },
     );
+  }
+
+  /// 'kn_IN' / 'kn-IN' -> 'kn' (ISO-639-1 for Whisper). null-safe.
+  static String? _iso(String? localeId) {
+    if (localeId == null || localeId.isEmpty) return null;
+    final code = localeId.split(RegExp('[-_]')).first.toLowerCase();
+    return code.length == 2 ? code : null;
   }
 
   /// question -> reply -> speak. Interrupt by tapping the orb.

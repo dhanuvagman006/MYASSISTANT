@@ -74,7 +74,11 @@ class ApiService {
 
   /// Sends a recorded question to /stt (Whisper). Returns the
   /// transcript; the language is auto-detected server-side.
-  static Future<String> transcribe(String filePath) async {
+  static Future<String> transcribe(
+    String filePath, {
+    String? forceLanguage, // ISO-639-1, e.g. 'kn' — user picked it: lock it
+    String? hintLanguage, // ISO-639-1 — bias detection, others still work
+  }) async {
     final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/stt'));
     // Multipart sets its own Content-Type; add only auth.
     if (sessionToken != null) {
@@ -82,6 +86,8 @@ class ApiService {
     } else if (_appApiKey.isNotEmpty) {
       req.headers['X-App-Key'] = _appApiKey;
     }
+    if (forceLanguage != null) req.fields['language'] = forceLanguage;
+    if (hintLanguage != null) req.fields['hint'] = hintLanguage;
     req.files.add(await http.MultipartFile.fromPath('audio', filePath));
 
     final streamed = await req.send().timeout(const Duration(seconds: 40));

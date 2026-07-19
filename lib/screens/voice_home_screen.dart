@@ -401,8 +401,9 @@ class _LanguageSheetState extends State<_LanguageSheet> {
                     style: Theme.of(context).textTheme.titleLarge),
                 const SizedBox(height: 4),
                 Text(
-                  'Which language should Hari listen for? Replies are '
-                  'spoken in whatever language Hari answers in.',
+                  'Auto detects any language (recommended). Picking a '
+                  'language locks understanding to it — use this if your '
+                  'language keeps being misdetected.',
                   style: TextStyle(
                       fontSize: 12.5,
                       color: cs.onSurface.withValues(alpha: 0.6)),
