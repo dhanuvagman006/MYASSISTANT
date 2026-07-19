@@ -64,8 +64,7 @@ class _VoiceHomeScreenState extends State<VoiceHomeScreen>
       OrbState.listening =>
         a.partial.isEmpty ? "I'm listening…" : '"${a.partial}"',
       OrbState.thinking => 'Thinking…',
-      OrbState.speaking =>
-        'Speaking — say "Hey Hari", talk over me, or tap to stop',
+      OrbState.speaking => 'Speaking — tap the orb to stop',
     };
   }
 
