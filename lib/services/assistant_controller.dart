@@ -216,19 +216,45 @@ class AssistantController extends ChangeNotifier {
     partial = '';
     notifyListeners();
 
-    final question = await _voice.captureQuestion(
-      localeId: effectiveLocaleId,
-      onPartial: (p) {
-        partial = p;
-        notifyListeners();
-      },
-    );
+    final question = await _captureAnyLanguage();
 
     await _answerOnce(question);
 
     state = OrbState.idle;
     notifyListeners();
     await _startWake();
+  }
+
+  /// Capture path, best first:
+  ///  1. CLOUD (Whisper via backend /stt) — record m4a, auto language
+  ///     detection: Kannada, Hindi, English, mixed — no locale needed.
+  ///  2. Device recognizer with the effective locale, if recording or
+  ///     transcription fails (offline, permission, server down).
+  Future<String> _captureAnyLanguage() async {
+    // 1) Cloud path (preferred).
+    if (await _voice.canRecord()) {
+      final path = await _voice.recordUntilSilence(onLevel: (_) {});
+      if (path == null) return ''; // silence or cancelled — back to idle
+      partial = '…';
+      notifyListeners();
+      try {
+        return await ApiService.transcribe(path);
+      } catch (_) {
+        // Server unreachable AFTER the user already spoke — ask them to
+        // repeat once via the device recognizer instead of going mute.
+        partial = '';
+        notifyListeners();
+      }
+    }
+
+    // 2) Device recognizer (recorder unavailable, or cloud STT failed).
+    return _voice.captureQuestion(
+      localeId: effectiveLocaleId,
+      onPartial: (p) {
+        partial = p;
+        notifyListeners();
+      },
+    );
   }
 
   /// question -> reply -> speak. Interrupt by tapping the orb.

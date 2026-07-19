@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 /// Voice layer for the assistant (A2 Voice, A3 Multi-language).
@@ -344,6 +346,90 @@ class VoiceService {
 
   Future<void> cancelCapture() async {
     if (_stt.isListening) await _stt.stop();
+    if (await _rec.isRecording()) {
+      _recCancelled = true;
+      await _rec.stop();
+    }
+  }
+
+  // ---------------- RECORD FOR CLOUD STT (Whisper) ----------------
+  // Records the question as a small m4a for the backend /stt endpoint.
+  // Whisper auto-detects the language, so this path needs no locale at
+  // all — it's what makes Kannada/Hindi/mixed speech "just work".
+
+  final AudioRecorder _rec = AudioRecorder();
+  bool _recCancelled = false;
+
+  /// Whether the cloud recording path can run at all.
+  Future<bool> canRecord() async {
+    try {
+      return await _rec.hasPermission();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Records until the speaker goes quiet (or [maxSeconds]).
+  /// Returns the file path, or null if nothing was said / cancelled.
+  Future<String?> recordUntilSilence({
+    int maxSeconds = 15,
+    void Function(double level)? onLevel, // 0..1 for UI animation
+  }) async {
+    try {
+      if (!await _rec.hasPermission()) return null;
+      _recCancelled = false;
+
+      final dir = await getTemporaryDirectory();
+      final path =
+          '${dir.path}/hari_q_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+      await _rec.start(
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc,
+          sampleRate: 16000,
+          numChannels: 1,
+          bitRate: 48000,
+        ),
+        path: path,
+      );
+
+      const speechDb = -30.0; // above this = talking
+      const quietDb = -38.0; // below this = silence
+      var started = false;
+      var silentMs = 0;
+      var totalMs = 0;
+
+      while (totalMs < maxSeconds * 1000) {
+        await Future.delayed(const Duration(milliseconds: 200));
+        totalMs += 200;
+        if (_recCancelled || !await _rec.isRecording()) break;
+
+        final amp = await _rec.getAmplitude();
+        final db = amp.current;
+        // Map roughly -50..0 dBFS to 0..1 for the orb animation.
+        onLevel?.call(((db + 50) / 50).clamp(0.0, 1.0));
+
+        if (db > speechDb) {
+          started = true;
+          silentMs = 0;
+        } else if (db < quietDb) {
+          silentMs += 200;
+          // No speech at all for 6s -> give up quietly.
+          if (!started && totalMs >= 6000) break;
+          // Finished talking: 1.6s of silence after speech.
+          if (started && silentMs >= 1600) break;
+        }
+      }
+
+      final saved = await _rec.stop();
+      if (_recCancelled || !started) return null;
+      return saved ?? path;
+    } catch (_) {
+      try {
+        await _rec.stop();
+      } catch (_) {}
+      return null;
+    }
   }
 
   // ---------------- SPEAK ----------------

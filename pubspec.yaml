@@ -32,6 +32,12 @@ dependencies:
   geolocator: ^13.0.1
   geocoding: ^3.0.0
 
+  # Cloud speech-to-text (Whisper via backend /stt) — records the
+  # question as m4a; auto language detection, replaces flaky on-device
+  # regional recognition. Device STT stays as wake word + fallback.
+  record: ^5.1.2
+  path_provider: ^2.1.4
+
   # Updates
   package_info_plus: ^8.0.2      # reads the installed version
   url_launcher: ^6.3.0           # opens App Store on iOS

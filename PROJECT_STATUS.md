@@ -81,6 +81,14 @@ Last commit at time of writing: `3e04298` on `main`.
     ACCESS_COARSE_LOCATION in the local AndroidManifest (README updated) and
     `flutter pub get` (new deps: geolocator, geocoding).
 
+12. **Cloud STT (Whisper via Groq)** — device recognizer kept mishearing Kannada as English
+    on the test phone, so question capture is now CLOUD-FIRST: app records m4a (record +
+    path_provider, silence-stop at 1.6s quiet / 15s max) -> backend POST /stt (multer ->
+    Groq whisper-large-v3-turbo, verbose_json) -> {text, language}. Whisper auto-detects the
+    language, so no locale is needed for capture. Device STT remains for the wake word and
+    as fallback (recorder unavailable / server down -> user repeats once). Run
+    `flutter pub get`; backend needs `npm install` + restart (new dep: multer).
+
 ## ⚠️ CURRENT STATE / OPEN ISSUE — resume here
 - User's last `flutter run` after commit `3e04298` produced **"long lengthy errors" that were
   NOT yet shared or diagnosed**. First suspects, in order:

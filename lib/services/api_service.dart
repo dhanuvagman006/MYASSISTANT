@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 
 import '../models/chat_message.dart';
@@ -54,6 +55,29 @@ class ApiService {
         .get(Uri.parse('$baseUrl/health'))
         .timeout(const Duration(seconds: 8))
         .ignore();
+  }
+
+  /// Sends a recorded question to /stt (Whisper). Returns the
+  /// transcript; the language is auto-detected server-side.
+  static Future<String> transcribe(String filePath) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/stt'));
+    // Multipart sets its own Content-Type; add only auth.
+    if (sessionToken != null) {
+      req.headers['Authorization'] = 'Bearer $sessionToken';
+    } else if (_appApiKey.isNotEmpty) {
+      req.headers['X-App-Key'] = _appApiKey;
+    }
+    req.files.add(await http.MultipartFile.fromPath('audio', filePath));
+
+    final streamed = await req.send().timeout(const Duration(seconds: 40));
+    final r = await http.Response.fromStream(streamed);
+    try {
+      File(filePath).delete().ignore();
+    } catch (_) {}
+    if (r.statusCode != 200) {
+      throw Exception('stt ${r.statusCode}');
+    }
+    return (jsonDecode(r.body)['text'] as String?)?.trim() ?? '';
   }
 
   static Future<String> sendChat(List<ChatMessage> history) async {
