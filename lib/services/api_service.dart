@@ -15,6 +15,19 @@ class ApiService {
     defaultValue: 'https://api.myassistant.example.com',
   );
 
+  /// Shared secret matching the backend's APP_API_KEY (dev/X-App-Key mode).
+  /// Pass with: --dart-define=APP_API_KEY=...
+  static const String _appApiKey = String.fromEnvironment('APP_API_KEY');
+
+  /// Google ID token, set after sign-in (F1). Takes priority over the app key.
+  static String? googleIdToken;
+
+  static Map<String, String> get _authHeaders => {
+        'Content-Type': 'application/json',
+        if (googleIdToken != null) 'Authorization': 'Bearer $googleIdToken'
+        else if (_appApiKey.isNotEmpty) 'X-App-Key': _appApiKey,
+      };
+
   static RemoteConfig config = const RemoteConfig();
 
   /// Fetched on every launch — drives feature flags, announcements, update prompts.
@@ -46,7 +59,7 @@ class ApiService {
     final r = await http
         .post(
           Uri.parse('$baseUrl/chat'),
-          headers: const {'Content-Type': 'application/json'},
+          headers: _authHeaders,
           body: jsonEncode({
             'messages': history.map((m) => m.toJson()).toList(),
             'language': 'auto',
@@ -54,6 +67,9 @@ class ApiService {
         )
         .timeout(const Duration(seconds: 60));
 
+    if (r.statusCode == 401) {
+      throw Exception('Sign-in required — check APP_API_KEY or Google sign-in.');
+    }
     if (r.statusCode != 200) {
       throw Exception('Server error ${r.statusCode}');
     }
