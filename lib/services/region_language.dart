@@ -3,47 +3,39 @@ import 'package:geolocator/geolocator.dart';
 
 /// Resolves the user's REGIONAL language from their location, so a user
 /// in Karnataka is heard (and answered) in Kannada by default, in Kerala
-/// in Malayalam, and so on — no setup needed. The "I speak…" picker
-/// always overrides this.
+/// in Malayalam, and so on. The "I speak…" picker always overrides.
+///
+/// Indian states are resolved DIRECTLY from latitude/longitude with
+/// coarse bounding boxes — the platform geocoder proved unreliable for
+/// state names (it varies by device/locale, which silently fell back to
+/// country-level Hindi). The geocoder is now only used for the country
+/// when the user is outside India.
 ///
 /// Needs ACCESS_COARSE_LOCATION in AndroidManifest.xml (see README).
 class RegionLanguage {
   RegionLanguage._();
 
-  /// Indian state / union territory → speech locale.
-  /// Keys are lowercase admin-area names as the platform geocoder
-  /// returns them.
-  static const Map<String, String> _indiaStates = {
-    'karnataka': 'kn_IN',
-    'tamil nadu': 'ta_IN',
-    'kerala': 'ml_IN',
-    'andhra pradesh': 'te_IN',
-    'telangana': 'te_IN',
-    'maharashtra': 'mr_IN',
-    'gujarat': 'gu_IN',
-    'punjab': 'pa_IN',
-    'west bengal': 'bn_IN',
-    'tripura': 'bn_IN',
-    'odisha': 'or_IN',
-    'assam': 'as_IN',
-    'uttar pradesh': 'hi_IN',
-    'bihar': 'hi_IN',
-    'madhya pradesh': 'hi_IN',
-    'rajasthan': 'hi_IN',
-    'haryana': 'hi_IN',
-    'delhi': 'hi_IN',
-    'nct of delhi': 'hi_IN',
-    'jharkhand': 'hi_IN',
-    'chhattisgarh': 'hi_IN',
-    'uttarakhand': 'hi_IN',
-    'himachal pradesh': 'hi_IN',
-    'jammu and kashmir': 'ur_IN',
-    'chandigarh': 'hi_IN',
-    'puducherry': 'ta_IN',
-    'goa': 'en_IN',
-  };
+  /// (minLat, maxLat, minLng, maxLng, locale) — checked IN ORDER, first
+  /// hit wins. Boxes overlap at borders; the order resolves the common
+  /// cities correctly (Bengaluru→kn, Chennai→ta, Hyderabad→te,
+  /// Kochi→ml, Mysuru→kn, Mumbai→mr…). Coarse by design.
+  static const List<(double, double, double, double, String)> _indiaBoxes = [
+    (14.88, 15.82, 73.65, 74.35, 'en_IN'), // Goa
+    (8.00, 10.50, 76.00, 77.60, 'ml_IN'), // Kerala (south)
+    (10.50, 12.85, 74.80, 76.35, 'ml_IN'), // Kerala (north)
+    (15.85, 19.95, 77.20, 81.35, 'te_IN'), // Telangana
+    (11.55, 18.50, 73.90, 78.60, 'kn_IN'), // Karnataka
+    (7.90, 13.50, 77.30, 80.40, 'ta_IN'), // Tamil Nadu (east/main)
+    (9.50, 12.05, 76.20, 77.30, 'ta_IN'), // Tamil Nadu (west)
+    (12.55, 19.20, 76.70, 84.85, 'te_IN'), // Andhra Pradesh
+    (15.60, 22.05, 72.60, 80.95, 'mr_IN'), // Maharashtra
+    (20.05, 24.75, 68.05, 74.50, 'gu_IN'), // Gujarat
+    (17.75, 22.60, 81.30, 87.55, 'or_IN'), // Odisha
+    (21.45, 27.25, 85.75, 89.95, 'bn_IN'), // West Bengal
+    (29.50, 32.60, 73.85, 76.95, 'pa_IN'), // Punjab
+  ];
 
-  /// Country → speech locale, for outside India / unknown state.
+  /// Country → speech locale, for outside India.
   static const Map<String, String> _countries = {
     'IN': 'hi_IN',
     'PK': 'ur_PK',
@@ -71,6 +63,18 @@ class RegionLanguage {
     'EG': 'ar_EG',
   };
 
+  static bool _inIndia(double lat, double lng) =>
+      lat >= 6.5 && lat <= 35.7 && lng >= 68.0 && lng <= 97.5;
+
+  static String? _indiaStateLocale(double lat, double lng) {
+    for (final b in _indiaBoxes) {
+      if (lat >= b.$1 && lat <= b.$2 && lng >= b.$3 && lng <= b.$4) {
+        return b.$5;
+      }
+    }
+    return null;
+  }
+
   /// Ordered locale candidates for where the user is right now
   /// (state language first, then country language). Empty if location
   /// is unavailable or permission is denied.
@@ -95,18 +99,28 @@ class RegionLanguage {
         ),
       ).timeout(const Duration(seconds: 10));
 
-      final marks =
-          await placemarkFromCoordinates(pos.latitude, pos.longitude);
-      if (marks.isEmpty) return const [];
-
-      final state = (marks.first.administrativeArea ?? '').trim().toLowerCase();
-      final country = (marks.first.isoCountryCode ?? '').trim().toUpperCase();
-
+      final lat = pos.latitude, lng = pos.longitude;
       final out = <String>[];
-      final byState = _indiaStates[state];
-      if (country == 'IN' && byState != null) out.add(byState);
-      final byCountry = _countries[country];
-      if (byCountry != null && !out.contains(byCountry)) out.add(byCountry);
+
+      if (_inIndia(lat, lng)) {
+        // Pure math — no geocoder, no permission beyond location, no
+        // network. Karnataka WILL come back kn_IN.
+        final state = _indiaStateLocale(lat, lng);
+        if (state != null) out.add(state);
+        if (!out.contains('hi_IN')) out.add('hi_IN');
+        return out;
+      }
+
+      // Outside India: geocode the country only.
+      try {
+        final marks = await placemarkFromCoordinates(lat, lng);
+        final country =
+            (marks.isNotEmpty ? marks.first.isoCountryCode ?? '' : '')
+                .trim()
+                .toUpperCase();
+        final byCountry = _countries[country];
+        if (byCountry != null) out.add(byCountry);
+      } catch (_) {}
       return out;
     } catch (_) {
       return const [];

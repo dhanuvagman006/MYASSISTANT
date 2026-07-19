@@ -93,6 +93,7 @@ class AssistantController extends ChangeNotifier {
   /// device recognizer actually supports the regional locale.
   Future<void> _detectRegionalLanguage() async {
     if (sttLocaleId != null) return; // user's explicit choice wins
+    if (autoLocaleId != null) return; // conversation already set a language
     try {
       final wanted = await RegionLanguage.candidates();
       if (wanted.isEmpty) return;
