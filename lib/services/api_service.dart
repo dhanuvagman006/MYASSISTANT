@@ -57,6 +57,21 @@ class ApiService {
         .ignore();
   }
 
+  /// Regional language from the caller's IP (server-side lookup —
+  /// no location permission needed). Returns e.g. 'kn_IN', or null.
+  static Future<String?> fetchRegionLocale() async {
+    try {
+      final r = await http
+          .get(Uri.parse('$baseUrl/region'), headers: _authHeaders)
+          .timeout(const Duration(seconds: 8));
+      if (r.statusCode != 200) return null;
+      final locale = jsonDecode(r.body)['locale'] as String?;
+      return (locale != null && locale.isNotEmpty) ? locale : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Sends a recorded question to /stt (Whisper). Returns the
   /// transcript; the language is auto-detected server-side.
   static Future<String> transcribe(String filePath) async {

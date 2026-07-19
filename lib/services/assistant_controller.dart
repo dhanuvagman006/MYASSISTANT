@@ -95,7 +95,12 @@ class AssistantController extends ChangeNotifier {
     if (sttLocaleId != null) return; // user's explicit choice wins
     if (autoLocaleId != null) return; // conversation already set a language
     try {
-      final wanted = await RegionLanguage.candidates();
+      // 1) IP-based, via the backend — zero permissions, works everywhere.
+      // 2) GPS bounding boxes, if the backend can't resolve it.
+      final wanted = <String>[];
+      final byIp = await ApiService.fetchRegionLocale();
+      if (byIp != null) wanted.add(byIp);
+      if (wanted.isEmpty) wanted.addAll(await RegionLanguage.candidates());
       if (wanted.isEmpty) return;
       final supported = await _voice.sttLocales();
       if (supported.isEmpty) return;
