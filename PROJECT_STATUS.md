@@ -169,3 +169,17 @@ flutter run --dart-define=BASE_URL=http://<LAPTOP_LAN_IP>:3000 \
   onSoundLevelChange). While listening: marigold voice halo blooms with
   loudness, rings and core scale up, glow deepens/spreads. Samples (~5 Hz)
   smoothed with a 180 ms TweenAnimationBuilder so motion is fluid.
+
+## Update — 19 July 2026 (4): Sign-up interview
+- **`screens/interview_screen.dart`** — one-time voice onboarding for NEW
+  accounts: Hari speaks 4 friendly questions (name, city, work/study, loves),
+  auto-listens after each (cloud STT → device fallback, mic level animates the
+  indicator), answers editable as text, per-question Skip + top-right "Skip all",
+  then lands on the home shell.
+- **Routing** — auth responses now carry `isNew` (backend: signup=true, social
+  upsert reports `created`); `AuthService.lastSignInWasNew` drives the gate in
+  main.dart: AuthScreen → InterviewScreen (new accounts only) → HomeShell.
+- **Answer storage** — each answer POSTs to `/memory/interview`, which runs the
+  memory extractor with `force:true` (no throttle); if extraction yields nothing
+  (e.g. no AI keys) the raw answer is stored keyed by the question, so nothing
+  is lost. After the interview the greeting is naturally personal.

@@ -8,6 +8,7 @@ import 'screens/chat_screen.dart';
 import 'screens/daily_screen.dart';
 import 'screens/documents_screen.dart';
 import 'screens/inbox_screen.dart';
+import 'screens/interview_screen.dart';
 import 'screens/privacy_screen.dart';
 import 'screens/smart_home_screen.dart';
 import 'screens/voice_home_screen.dart';
@@ -75,9 +76,16 @@ class _AuthGateState extends State<AuthGate> {
         body: Center(child: CircularProgressIndicator()),
       );
     }
-    return AuthService.instance.isSignedIn
-        ? const HomeShell()
-        : const AuthScreen();
+    final auth = AuthService.instance;
+    if (!auth.isSignedIn) return const AuthScreen();
+    // Brand-new account → one-time interview so Hari learns the basics
+    // (skippable), THEN the home shell.
+    if (auth.lastSignInWasNew) {
+      return InterviewScreen(
+        onDone: () => setState(() => auth.lastSignInWasNew = false),
+      );
+    }
+    return const HomeShell();
   }
 }
 

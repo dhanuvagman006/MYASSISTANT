@@ -56,6 +56,11 @@ class AuthService extends ChangeNotifier {
   AppUser? user;
   bool get isSignedIn => user != null;
 
+  /// True right after a BRAND-NEW account was created (any provider) —
+  /// the gate in main.dart uses this to show the one-time sign-up
+  /// interview before landing on the home shell.
+  bool lastSignInWasNew = false;
+
   /// Apple sign-in is iOS-only for now (Android needs a web-redirect setup).
   bool get appleAvailable => !kIsWeb && Platform.isIOS;
 
@@ -171,6 +176,7 @@ class AuthService extends ChangeNotifier {
     await _storage.write(key: _tokenKey, value: token);
     ApiService.sessionToken = token;
     user = AppUser.fromJson(data['user']);
+    lastSignInWasNew = (data['isNew'] as bool?) ?? false;
     notifyListeners();
   }
 }

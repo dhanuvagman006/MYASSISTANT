@@ -178,6 +178,20 @@ class ApiService {
     if (r.statusCode != 200) throw Exception('Could not delete (${r.statusCode})');
   }
 
+  /// One sign-up interview answer → the backend extracts durable facts
+  /// from it immediately (no learning throttle).
+  static Future<void> submitInterviewAnswer(
+      String question, String answer) async {
+    final r = await http
+        .post(
+          Uri.parse('$baseUrl/memory/interview'),
+          headers: _authHeaders,
+          body: jsonEncode({'question': question, 'answer': answer}),
+        )
+        .timeout(const Duration(seconds: 20));
+    if (r.statusCode != 200) throw Exception('Could not save (${r.statusCode})');
+  }
+
   /// Forget everything — the nuclear "clear memory" button.
   static Future<void> clearMemories() async {
     final r = await http
