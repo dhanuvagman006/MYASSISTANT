@@ -193,6 +193,68 @@ class ApiService {
     if (r.statusCode != 200) throw Exception('Could not delete (${r.statusCode})');
   }
 
+  // ---------------- GOOGLE (GMAIL + CALENDAR) ----------------
+
+  static Future<void> connectGoogle(String serverAuthCode) async {
+    final r = await http
+        .post(
+          Uri.parse('$baseUrl/google/connect'),
+          headers: _authHeaders,
+          body: jsonEncode({'serverAuthCode': serverAuthCode}),
+        )
+        .timeout(const Duration(seconds: 20));
+    if (r.statusCode != 200) {
+      throw Exception(
+          (jsonDecode(r.body)['error'] as String?) ?? 'link failed');
+    }
+  }
+
+  static Future<bool> googleConnected() async {
+    try {
+      final r = await http
+          .get(Uri.parse('$baseUrl/google/status'), headers: _authHeaders)
+          .timeout(const Duration(seconds: 10));
+      return r.statusCode == 200 &&
+          (jsonDecode(r.body)['connected'] as bool? ?? false);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<void> disconnectGoogle() async {
+    await http
+        .delete(Uri.parse('$baseUrl/google'), headers: _authHeaders)
+        .timeout(const Duration(seconds: 15));
+  }
+
+  /// null = Gmail not linked yet (409).
+  static Future<List<Map<String, dynamic>>?> fetchGmailInbox() async {
+    final r = await http
+        .get(Uri.parse('$baseUrl/google/inbox'), headers: _authHeaders)
+        .timeout(const Duration(seconds: 20));
+    if (r.statusCode == 409) return null;
+    if (r.statusCode != 200) throw Exception('inbox ${r.statusCode}');
+    return ((jsonDecode(r.body)['emails'] as List?) ?? [])
+        .cast<Map<String, dynamic>>();
+  }
+
+  /// null = Calendar not linked yet (409).
+  static Future<List<Map<String, dynamic>>?> fetchCalendarEvents(
+      {int days = 7}) async {
+    try {
+      final r = await http
+          .get(Uri.parse('$baseUrl/google/calendar?days=$days'),
+              headers: _authHeaders)
+          .timeout(const Duration(seconds: 20));
+      if (r.statusCode == 409) return null;
+      if (r.statusCode != 200) return const [];
+      return ((jsonDecode(r.body)['events'] as List?) ?? [])
+          .cast<Map<String, dynamic>>();
+    } catch (_) {
+      return const [];
+    }
+  }
+
   // ---------------- REMINDERS ----------------
 
   static Future<List<Reminder>> fetchReminders() async {

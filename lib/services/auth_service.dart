@@ -53,6 +53,36 @@ class AuthService extends ChangeNotifier {
     serverClientId: _googleWebClientId.isEmpty ? null : _googleWebClientId,
   );
 
+  /// Separate instance for the DATA link (Gmail + Calendar, read-only).
+  /// forceCodeForRefreshToken makes Google hand us a serverAuthCode the
+  /// backend can exchange for a long-lived refresh token.
+  final _googleData = GoogleSignIn(
+    serverClientId: _googleWebClientId.isEmpty ? null : _googleWebClientId,
+    forceCodeForRefreshToken: true,
+    scopes: const [
+      'https://www.googleapis.com/auth/gmail.readonly',
+      'https://www.googleapis.com/auth/calendar.readonly',
+    ],
+  );
+
+  /// Ask for Gmail+Calendar access and hand the one-time code to the
+  /// backend. Throws AuthException with a user-safe message on failure.
+  Future<void> linkGoogleData() async {
+    GoogleSignInAccount? account;
+    try {
+      account = await _googleData.signIn();
+    } catch (_) {
+      throw const AuthException('Google sign-in failed. Please try again.');
+    }
+    if (account == null) throw const AuthException('Connection cancelled.');
+    final code = account.serverAuthCode;
+    if (code == null) {
+      throw const AuthException(
+          'Google did not return an auth code — check GOOGLE_WEB_CLIENT_ID.');
+    }
+    await ApiService.connectGoogle(code);
+  }
+
   AppUser? user;
   bool get isSignedIn => user != null;
 

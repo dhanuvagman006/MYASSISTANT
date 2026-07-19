@@ -23,6 +23,7 @@ class _DailyScreenState extends State<DailyScreen> {
   Map<String, dynamic>? _weather;
   List<Reminder>? _reminders;
   List<Map<String, dynamic>> _news = const [];
+  List<Map<String, dynamic>>? _events; // null = Calendar not linked
   bool _loading = true;
 
   @override
@@ -36,12 +37,14 @@ class _DailyScreenState extends State<DailyScreen> {
       ApiService.fetchWeather(),
       ReminderNotifications.instance.sync(),
       ApiService.fetchNews(),
+      ApiService.fetchCalendarEvents(days: 2),
     ]);
     if (!mounted) return;
     setState(() {
       _weather = results[0] as Map<String, dynamic>?;
       _reminders = results[1] as List<Reminder>;
       _news = results[2] as List<Map<String, dynamic>>;
+      _events = results[3] as List<Map<String, dynamic>>?;
       _loading = false;
     });
   }
@@ -142,6 +145,21 @@ class _DailyScreenState extends State<DailyScreen> {
     }
   }
 
+  String _eventWhen(Map<String, dynamic> e) {
+    final start = e['start']?.toString();
+    if (start == null) return '';
+    if (e['allDay'] == true || !start.contains('T')) return 'All day · $start';
+    final d = DateTime.tryParse(start)?.toLocal();
+    if (d == null) return '';
+    final now = DateTime.now();
+    final day = (d.day == now.day && d.month == now.month)
+        ? 'Today'
+        : 'Tomorrow';
+    final loc = e['location']?.toString() ?? '';
+    return '$day · ${TimeOfDay.fromDateTime(d).format(context)}'
+        '${loc.isNotEmpty ? ' · $loc' : ''}';
+  }
+
   String _due(Reminder r) {
     if (r.dueAt == null) return 'No set time';
     final d = r.dueAt!;
@@ -186,6 +204,42 @@ class _DailyScreenState extends State<DailyScreen> {
               ),
             ),
           const SizedBox(height: 16),
+
+          // ---------------- CALENDAR (next 2 days) ----------------
+          if (_events != null && _events!.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.only(left: 4, bottom: 8),
+              child: Text('CALENDAR',
+                  style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.1,
+                      color: cs.onSurface.withValues(alpha: 0.45))),
+            ),
+            Card(
+              child: Column(
+                children: [
+                  for (var i = 0; i < _events!.length && i < 5; i++) ...[
+                    ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.event_rounded,
+                          size: 20, color: AppColors.peacock),
+                      title: Text(_events![i]['title']?.toString() ?? '',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.w600)),
+                      subtitle: Text(_eventWhen(_events![i]),
+                          style: TextStyle(fontSize: 12, color: muted)),
+                    ),
+                    if (i < _events!.length - 1 && i < 4)
+                      const Divider(height: 1),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
 
           // ---------------- REMINDERS ----------------
           Row(

@@ -196,3 +196,13 @@ flutter run --dart-define=BASE_URL=http://<LAPTOP_LAN_IP>:3000 \
   synced to /reminders, top headlines. Pull-to-refresh.
 - `models/reminder.dart`; ApiService: reminders CRUD, fetchWeather, fetchNews;
   RegionLanguage caches lastLat/lastLng → ApiService.geo.
+
+## Update — 19 July 2026 (6): Gmail + Calendar (app)
+- AuthService.linkGoogleData() — data-scopes GoogleSignIn (gmail.readonly +
+  calendar.readonly, forceCodeForRefreshToken) → serverAuthCode → /google/connect.
+- Inbox screen LIVE: connect CTA when unlinked; connected: recent primary
+  emails (unread bold + marigold dot), pull-to-refresh, disconnect.
+- Today screen: CALENDAR card (next 2 days) when linked.
+- ApiService: connectGoogle/googleConnected/disconnectGoogle/fetchGmailInbox/
+  fetchCalendarEvents (null = not linked). Voice answers "any new emails?" /
+  "what's my schedule?" from real data.
