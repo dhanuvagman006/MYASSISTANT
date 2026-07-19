@@ -21,9 +21,11 @@ dependencies:
   speech_to_text: ^7.0.0
   flutter_tts: ^4.1.0
 
-  # Screen-off wake word: on-device detection + mic foreground service
+  # Screen-off wake word: on-device detection (Porcupine). NOTE: the mic
+  # foreground service (flutter_foreground_task) was REMOVED for now — its
+  # hard-coded Java 1.8 broke builds on AGP 9. Wake word works while the
+  # app is open; screen-off listening returns when the plugin ships a fix.
   porcupine_flutter: ^3.0.4
-  flutter_foreground_task: ^8.17.0
 
   # Local storage for session + cached config
   shared_preferences: ^2.3.2

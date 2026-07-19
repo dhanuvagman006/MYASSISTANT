@@ -232,3 +232,11 @@ flutter run --dart-define=BASE_URL=http://<LAPTOP_LAN_IP>:3000 \
   notification_service.dart. With timezone 0.10, fln resolves to 18 and the
   existing code compiles. Run: flutter clean && flutter pub upgrade.
 - KGP warnings from plugins are non-blocking on current Flutter.
+
+## Change — 19 July 2026: removed flutter_foreground_task
+- Its hard-coded Java 1.8 target fights AGP 9's JVM-target validation and kept
+  breaking builds. Removed the dependency and the whole foreground-service
+  section from assistant_controller (service start/stop, wakeServiceCallback,
+  _KeepAliveHandler). TRADE-OFF: no screen-off wake word for now — wake word
+  works while the app is open. Revisit when the plugin ships a Built-in-Kotlin
+  / JVM-17 release (or re-add with kotlin.jvm.target.validation.mode=warning).

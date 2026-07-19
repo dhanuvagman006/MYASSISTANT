@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
-import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:porcupine_flutter/porcupine_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -29,9 +28,9 @@ enum OrbState { idle, listening, thinking, speaking }
 ///  2. Fallback: Android speech recognizer transcript watching
 ///     (foreground only, higher latency).
 ///
-/// Screen-off operation additionally requires the microphone foreground
-/// service (started/stopped with the wake toggle) and the manifest
-/// entries documented in the README.
+/// NOTE: the microphone foreground service (screen-off listening) was
+/// removed for now — flutter_foreground_task broke AGP 9 builds. Wake
+/// word works while the app is open; screen-off returns later.
 class AssistantController extends ChangeNotifier {
   AssistantController._();
   static final AssistantController instance = AssistantController._();
@@ -228,7 +227,6 @@ class AssistantController extends ChangeNotifier {
 
   Future<void> _startWake() async {
     if (!micReady || !wakeEnabled || state != OrbState.idle) return;
-    await _startForegroundService();
     if (_porcupine != null) {
       try {
         await _porcupine!.start();
@@ -260,7 +258,6 @@ class AssistantController extends ChangeNotifier {
       await _startWake();
     } else {
       await _pauseWake();
-      await _stopForegroundService();
     }
   }
 
@@ -555,8 +552,8 @@ class AssistantController extends ChangeNotifier {
     }
   }
 
-  /// App lifecycle: with Porcupine + the foreground service the loop runs
-  /// with the screen off. The STT fallback releases the mic in background.
+  /// App lifecycle: without the foreground service, listening pauses in
+  /// the background and resumes when the app returns to the foreground.
   Future<void> onBackground() async {
     if (!onDeviceWake) await _voice.stopWatching();
   }
@@ -565,61 +562,4 @@ class AssistantController extends ChangeNotifier {
     if (state == OrbState.idle) await _startWake();
   }
 
-  // ---------------- FOREGROUND SERVICE ----------------
-  // Keeps the process + microphone alive when the screen turns off.
-
-  Future<void> _startForegroundService() async {
-    try {
-      if (await FlutterForegroundTask.isRunningService) return;
-      FlutterForegroundTask.init(
-        androidNotificationOptions: AndroidNotificationOptions(
-          channelId: 'hari_wake',
-          channelName: 'Hari wake word',
-          channelDescription: 'Listening for "Hey Hari"',
-          channelImportance: NotificationChannelImportance.LOW,
-          priority: NotificationPriority.LOW,
-        ),
-        iosNotificationOptions: const IOSNotificationOptions(),
-        foregroundTaskOptions: ForegroundTaskOptions(
-          eventAction: ForegroundTaskEventAction.nothing(),
-          allowWakeLock: true,
-          allowWifiLock: true,
-        ),
-      );
-      await FlutterForegroundTask.requestNotificationPermission();
-      await FlutterForegroundTask.startService(
-        notificationTitle: 'Hari is listening',
-        notificationText: 'Say "Hey Hari" — even with the screen off',
-        callback: wakeServiceCallback,
-      );
-    } catch (_) {
-      // Manifest not set up yet — wake word still works in foreground.
-    }
-  }
-
-  Future<void> _stopForegroundService() async {
-    try {
-      if (await FlutterForegroundTask.isRunningService) {
-        await FlutterForegroundTask.stopService();
-      }
-    } catch (_) {}
-  }
-}
-
-/// The service itself does no work — the main isolate runs the loop.
-/// Its only job is to hold microphone-grade process priority.
-@pragma('vm:entry-point')
-void wakeServiceCallback() {
-  FlutterForegroundTask.setTaskHandler(_KeepAliveHandler());
-}
-
-class _KeepAliveHandler extends TaskHandler {
-  @override
-  Future<void> onStart(DateTime timestamp, TaskStarter starter) async {}
-
-  @override
-  void onRepeatEvent(DateTime timestamp) {}
-
-  @override
-  Future<void> onDestroy(DateTime timestamp) async {}
 }
