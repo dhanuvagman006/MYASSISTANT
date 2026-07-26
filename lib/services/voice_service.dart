@@ -290,8 +290,15 @@ class VoiceService {
         listenMode: stt.ListenMode.dictation,
         cancelOnError: false,
       ),
-      listenFor: const Duration(seconds: 20),
-      pauseFor: const Duration(seconds: 10),
+      // Longest session Android reliably allows. pauseFor must not be
+      // shorter than listenFor here, or silence (the normal state while
+      // waiting for a wake word) ends the session early and the mic
+      // audibly recycles every few seconds. With these values the
+      // recognizer holds one session ~55 s, then restarts once — the
+      // minimum cycling this engine permits. TRULY continuous listening
+      // requires the Porcupine engine (raw audio stream, no sessions).
+      listenFor: const Duration(seconds: 55),
+      pauseFor: const Duration(seconds: 55),
     );
   }
 
