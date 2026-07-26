@@ -306,7 +306,7 @@ class AssistantController extends ChangeNotifier {
       r'camera|kamera|ಕ್ಯಾಮ|कैमर|ക്യാമ|கேமர|కెమె|ਕੈਮਰ|ক্যামে',
       caseSensitive: false);
   static final _photoTake = RegExp(
-      r'\btake (a )?(photo|picture|pic)\b|\bclick (a )?(photo|pic)\b|'
+      r'\btake (a |another |one more )?(photo|picture|pic)\b|\bclick (a )?(photo|pic)\b|'
       r'\b(photo|pic|picture|snap)\b\s*\b(tegi|le lo|lo|khinch|eduk|edu)\b|'
       r'ಫೋಟೋ|फोटो (लो|खींच)|ഫോട്ടോ എടു|புகைப்படம்|ఫోటో తీ',
       caseSensitive: false);
