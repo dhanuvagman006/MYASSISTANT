@@ -13,12 +13,18 @@ import 'screens/privacy_screen.dart';
 import 'screens/smart_home_screen.dart';
 import 'screens/voice_home_screen.dart';
 import 'services/api_service.dart';
+import 'services/app_strings.dart';
 import 'services/auth_service.dart';
+import 'services/style_prefs.dart';
+import 'widgets/style_settings_sheet.dart';
 import 'theme/app_theme.dart';
 import 'widgets/update_button.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  // Style + language prefs load in parallel with the first frame; every
+  // later read is a plain field access (no disk on hot paths).
+  StylePrefs.instance.load();
   runApp(const MyAssistantApp());
 }
 
@@ -107,6 +113,18 @@ class _HomeShellState extends State<HomeShell> {
     ApiService.refreshConfig().then((c) {
       if (mounted) setState(() => _config = c);
     });
+    // A3 — re-render menus instantly when the app language changes.
+    StylePrefs.instance.addListener(_onPrefs);
+  }
+
+  void _onPrefs() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    StylePrefs.instance.removeListener(_onPrefs);
+    super.dispose();
   }
 
   @override
@@ -149,21 +167,26 @@ class _HomeShellState extends State<HomeShell> {
         actions: [
           UpdateButton(config: _config),
           IconButton(
-            tooltip: 'Sign out',
+            tooltip: S.t('settings'),
+            icon: const Icon(Icons.tune_rounded),
+            onPressed: () => showStyleSettingsSheet(context),
+          ),
+          IconButton(
+            tooltip: S.t('sign_out'),
             icon: const Icon(Icons.logout_rounded),
             onPressed: () async {
               final ok = await showDialog<bool>(
                 context: context,
                 builder: (ctx) => AlertDialog(
-                  title: const Text('Sign out?'),
-                  content: const Text('You can sign back in any time.'),
+                  title: Text(S.t('sign_out_q')),
+                  content: Text(S.t('sign_out_body')),
                   actions: [
                     TextButton(
                         onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('Cancel')),
+                        child: Text(S.t('cancel'))),
                     FilledButton(
                         onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('Sign out')),
+                        child: Text(S.t('sign_out'))),
                   ],
                 ),
               );
@@ -205,17 +228,19 @@ class _HomeShellState extends State<HomeShell> {
           HapticFeedback.selectionClick();
           setState(() => _tab = i);
         },
-        destinations: const [
+        destinations: [
           NavigationDestination(
-              icon: Icon(Icons.adjust_rounded), label: 'Assistant'),
+              icon: const Icon(Icons.adjust_rounded), label: S.t('tab_assistant')),
           NavigationDestination(
-              icon: Icon(Icons.chat_bubble_outline_rounded), label: 'Chat'),
+              icon: const Icon(Icons.chat_bubble_outline_rounded),
+              label: S.t('tab_chat')),
           NavigationDestination(
-              icon: Icon(Icons.wb_sunny_outlined), label: 'Today'),
+              icon: const Icon(Icons.wb_sunny_outlined), label: S.t('tab_today')),
           NavigationDestination(
-              icon: Icon(Icons.call_outlined), label: 'Calls'),
+              icon: const Icon(Icons.call_outlined), label: S.t('tab_calls')),
           NavigationDestination(
-              icon: Icon(Icons.person_outline_rounded), label: 'You'),
+              icon: const Icon(Icons.person_outline_rounded),
+              label: S.t('tab_you')),
         ],
       ),
     );

@@ -406,8 +406,9 @@ class AssistantController extends ChangeNotifier {
       final window = _history.length > 12
           ? _history.sublist(_history.length - 12)
           : _history;
-      reply = await ApiService.sendChat(window);
-      _history.add(ChatMessage(role: 'assistant', content: reply));
+      final answer = await ApiService.sendChat(window);
+      reply = answer.content;
+      _history.add(answer);
     } catch (_) {
       reply = "I couldn't reach the assistant. Please check your connection.";
     }

@@ -6,6 +6,7 @@ import '../models/chat_message.dart';
 import '../models/memory_item.dart';
 import '../models/reminder.dart';
 import '../models/remote_config.dart';
+import 'style_prefs.dart';
 
 /// All network traffic goes app → backend → AI providers.
 /// The app never holds AI provider keys.
@@ -117,11 +118,18 @@ class ApiService {
     return (jsonDecode(r.body)['text'] as String?)?.trim() ?? '';
   }
 
-  static Future<String> sendChat(List<ChatMessage> history) async {
+  /// Returns the assistant reply with any live-information sources (A5).
+  /// Style preferences (A4) ride as headers — zero extra round-trips.
+  static Future<ChatMessage> sendChat(List<ChatMessage> history) async {
+    final prefs = StylePrefs.instance;
     final r = await http
         .post(
           Uri.parse('$baseUrl/chat'),
-          headers: _chatHeaders,
+          headers: {
+            ..._chatHeaders,
+            'X-Style-Tone': prefs.tone,
+            'X-Style-Length': prefs.answerLength,
+          },
           body: jsonEncode({
             'messages': history.map((m) => m.toJson()).toList(),
             'language': 'auto',
@@ -135,7 +143,12 @@ class ApiService {
     if (r.statusCode != 200) {
       throw Exception('Server error ${r.statusCode}');
     }
-    return (jsonDecode(r.body)['reply'] as String?) ?? '';
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    return ChatMessage(
+      role: 'assistant',
+      content: (j['reply'] as String?) ?? '',
+      sources: ChatSource.listFromJson(j['sources']),
+    );
   }
 
   /// Personalized spoken greeting for app open / sign-in. The backend

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../models/chat_message.dart';
 import '../services/api_service.dart';
+import '../services/app_strings.dart';
 import '../theme/app_theme.dart';
 
 /// Screen 02 — Chat & Live Information (A1, A5, C4, C5).
@@ -36,11 +37,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
     try {
       final reply = await ApiService.sendChat(_messages);
-      setState(
-          () => _messages.add(ChatMessage(role: 'assistant', content: reply)));
+      setState(() => _messages.add(reply));
     } catch (_) {
-      setState(
-          () => _error = "Couldn't reach the assistant. Check your connection.");
+      setState(() => _error = S.t('chat_error'));
     } finally {
       setState(() => _thinking = false);
       _scrollToBottom();
@@ -95,7 +94,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     onSubmitted: (_) => _send(),
                     textInputAction: TextInputAction.send,
                     decoration: InputDecoration(
-                      hintText: 'Ask anything — any language…',
+                      hintText: S.t('chat_hint'),
                       suffixIcon: Icon(Icons.mic_none_rounded,
                           color: Theme.of(context)
                               .colorScheme
@@ -224,9 +223,7 @@ class _Bubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isUser = msg.role == 'user';
-    return Align(
-      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
+    final bubble = Container(
         constraints: BoxConstraints(
             maxWidth: MediaQuery.of(context).size.width * 0.78),
         margin: const EdgeInsets.symmetric(vertical: 5),
@@ -249,6 +246,58 @@ class _Bubble extends StatelessWidget {
             height: 1.45,
           ),
         ),
+      );
+
+    // A5 — live-information sources shown under the reply.
+    final child = msg.sources.isEmpty
+        ? bubble
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [bubble, _SourceChips(msg.sources)],
+          );
+
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: child,
+    );
+  }
+}
+
+/// A5 — compact source attribution row (e.g. "The Hindu · NDTV · Open-Meteo").
+class _SourceChips extends StatelessWidget {
+  final List<ChatSource> sources;
+  const _SourceChips(this.sources);
+
+  @override
+  Widget build(BuildContext context) {
+    final muted =
+        Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55);
+    return Padding(
+      padding: const EdgeInsets.only(left: 6, bottom: 6, right: 6),
+      child: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 6,
+        runSpacing: 4,
+        children: [
+          Icon(Icons.public_rounded, size: 13, color: muted),
+          Text('${S.t('sources')}: ', style: TextStyle(fontSize: 12, color: muted)),
+          for (final s in sources.take(4))
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.peacock.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(s.name,
+                  style: TextStyle(
+                      fontSize: 11.5,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.75))),
+            ),
+        ],
       ),
     );
   }

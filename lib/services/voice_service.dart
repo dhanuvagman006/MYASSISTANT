@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter_tts/flutter_tts.dart';
+
+import 'style_prefs.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -21,6 +23,9 @@ class VoiceService {
 
   final stt.SpeechToText _stt = stt.SpeechToText();
   final FlutterTts _tts = FlutterTts();
+
+  /// A4 — user changed voice speed in settings: applies immediately.
+  Future<void> applySpeechRate(double rate) => _tts.setSpeechRate(rate);
 
   bool _ready = false;
   bool _watching = false;
@@ -77,7 +82,7 @@ class VoiceService {
         }
       },
     );
-    await _tts.setSpeechRate(0.52);
+    await _tts.setSpeechRate(StylePrefs.instance.speechRate);
     await _tts.setPitch(1.0);
     await _tts.awaitSpeakCompletion(true);
     await _loadVoices();
