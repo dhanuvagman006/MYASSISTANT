@@ -305,13 +305,25 @@ class AssistantController extends ChangeNotifier {
     // on/off and miss the first words on many devices.
     await Future.delayed(const Duration(milliseconds: 250));
 
-    state = OrbState.listening;
-    partial = '';
-    notifyListeners();
+    // CONTINUOUS CONVERSATION: after Hari finishes speaking, the mic
+    // reopens automatically for a follow-up — no wake word, no tap.
+    // The conversation ends when the user simply stays quiet (~6 s),
+    // taps the orb, or the turn was a device action (e.g. a phone call).
+    var followUp = false;
+    while (true) {
+      state = OrbState.listening;
+      partial = '';
+      notifyListeners();
 
-    final question = await _captureAnyLanguage();
+      final question = await _captureAnyLanguage(followUp: followUp);
+      if (question.trim().isEmpty) break; // silence or cancel → done
 
-    await _answerOnce(question);
+      final keepGoing = await _answerOnce(question);
+      if (!keepGoing) break;
+      followUp = true;
+      // Tiny beat so the mic isn't grabbed while TTS audio is tailing off.
+      await Future.delayed(const Duration(milliseconds: 150));
+    }
 
     state = OrbState.idle;
     notifyListeners();
@@ -323,10 +335,13 @@ class AssistantController extends ChangeNotifier {
   ///     detection: Kannada, Hindi, English, mixed — no locale needed.
   ///  2. Device recognizer with the effective locale, if recording or
   ///     transcription fails (offline, permission, server down).
-  Future<String> _captureAnyLanguage() async {
+  Future<String> _captureAnyLanguage({bool followUp = false}) async {
     // 1) Cloud path (preferred).
     if (await _voice.canRecord()) {
       final path = await _voice.recordUntilSilence(
+        // Follow-up turn: wait ~6 s for the user to keep talking, then
+        // end the conversation gracefully instead of listening forever.
+        noSpeechTimeoutMs: followUp ? 6000 : 8000,
         onLevel: (l) {
           micLevel = l;
           notifyListeners();
@@ -336,6 +351,9 @@ class AssistantController extends ChangeNotifier {
       if (path == null) {
         // User cancelled (orb tap) → genuinely stop.
         if (_voice.lastRecordingCancelled) return '';
+        // Follow-up + silence = the user is done talking. Ending here is
+        // the feature, not a failure — don't fall to the device recognizer.
+        if (followUp) return '';
         // VAD heard nothing — DON'T give up silently anymore. The old
         // behaviour ("mic turns on and off but nothing happens") ended
         // here; now we hand over to the device recognizer, which has its
@@ -385,33 +403,91 @@ class AssistantController extends ChangeNotifier {
     return code.length == 2 ? code : null;
   }
 
-  /// question -> reply -> speak. Interrupt by tapping the orb.
-  Future<void> _answerOnce(String question) async {
+  /// Sentence boundaries across scripts (., !, ?, …, Devanagari danda).
+  /// Whitespace-terminated so "3.5" or a sentence still being typed is
+  /// never cut early — the final flush handles the reply's last sentence.
+  static final _sentenceEnd = RegExp('[.!?…।॥]+["\')\\]]?\\s');
+
+  /// True while the user has tapped the orb to cut Hari off mid-answer —
+  /// stops the queued sentences, not just the one currently playing.
+  bool _speechAborted = false;
+
+  /// question -> STREAMED reply -> speak sentence-by-sentence.
+  /// Hari starts SPEAKING the first sentence while the rest of the answer
+  /// is still being generated (Gemini-Live-style time-to-first-audio).
+  /// Returns false when the conversation should end (device action /
+  /// user interrupt), true to keep listening for a follow-up.
+  Future<bool> _answerOnce(String question) async {
     question = question.trim();
-    if (question.isEmpty) return;
+    if (question.isEmpty) return false;
 
     // DEVICE ACTIONS FIRST: "call amma" is handled entirely on-device
     // (contacts + dialer) — private, instant, works offline.
-    if (await _handleCallIntent(question)) return;
+    if (await _handleCallIntent(question)) return false;
 
     state = OrbState.thinking;
     lastHeard = question;
     lastReply = null;
+    _speechAborted = false;
     notifyListeners();
 
-    String reply;
-    try {
-      _history.add(ChatMessage(role: 'user', content: question));
-      // Keep the payload small for latency; backend trims further.
-      final window = _history.length > 12
-          ? _history.sublist(_history.length - 12)
-          : _history;
-      final answer = await ApiService.sendChat(window);
-      reply = answer.content;
-      _history.add(answer);
-    } catch (_) {
-      reply = "I couldn't reach the assistant. Please check your connection.";
+    _history.add(ChatMessage(role: 'user', content: question));
+    // Keep the payload small for latency; backend trims further.
+    final window = _history.length > 12
+        ? _history.sublist(_history.length - 12)
+        : _history;
+
+    // Sentences are spoken strictly in order on this chain while the
+    // stream keeps filling the buffer behind them.
+    var speakChain = Future<void>.value();
+    var pending = '';
+    void enqueue(String sentence) {
+      final say = sentence.trim();
+      if (say.isEmpty) return;
+      speakChain = speakChain.then((_) async {
+        if (_speechAborted) return;
+        if (state != OrbState.speaking) {
+          state = OrbState.speaking;
+          notifyListeners();
+        }
+        await _voice.speak(say);
+      });
     }
+
+    void onDelta(String d) {
+      if (_speechAborted) return;
+      pending += d;
+      lastReply = (lastReply ?? '') + d; // live transcript in the UI
+      notifyListeners();
+      // Flush every completed sentence to TTS immediately.
+      int idx;
+      while ((idx = pending.indexOf(_sentenceEnd)) >= 0) {
+        final m = _sentenceEnd.firstMatch(pending.substring(idx))!;
+        final cut = idx + m.end;
+        enqueue(pending.substring(0, cut));
+        pending = pending.substring(cut);
+      }
+    }
+
+    ChatMessage answer;
+    try {
+      answer = await ApiService.sendChatStream(window, onDelta: onDelta);
+    } catch (_) {
+      // Streaming unavailable → classic one-shot request.
+      try {
+        answer = await ApiService.sendChat(window);
+        lastReply = answer.content;
+      } catch (_) {
+        answer = const ChatMessage(
+            role: 'assistant',
+            content:
+                "I couldn't reach the assistant. Please check your connection.");
+        lastReply = answer.content;
+      }
+      pending = answer.content;
+    }
+    _history.add(answer);
+    final reply = answer.content;
 
     // FOLLOW THE CONVERSATION'S LANGUAGE: if Hari answered in Kannada,
     // listen in Kannada next time — this is what makes "speak in
@@ -419,7 +495,6 @@ class AssistantController extends ChangeNotifier {
     // independent of location. A manual pick still overrides.
     _followReplyLanguage(reply);
 
-    state = OrbState.speaking;
     lastReply = reply;
     partial = '';
     notifyListeners();
@@ -428,7 +503,13 @@ class AssistantController extends ChangeNotifier {
     // resync so the phone schedules its notification immediately.
     ReminderNotifications.instance.sync();
 
-    await _voice.speak(reply); // tap the orb to stop
+    enqueue(pending); // whatever remained after the last sentence mark
+    await speakChain; // wait until every queued sentence has been spoken
+
+    if (_speechAborted) return false; // user cut Hari off → end conversation
+    state = OrbState.thinking; // brief neutral state while mic reopens
+    notifyListeners();
+    return true;
   }
 
   List<stt.LocaleName>? _supportedLocales;
@@ -547,6 +628,7 @@ class AssistantController extends ChangeNotifier {
       case OrbState.listening:
         await _voice.cancelCapture();
       case OrbState.speaking:
+        _speechAborted = true; // stop queued sentences too, not just this one
         await _voice.stopSpeaking();
       case OrbState.thinking:
         break;

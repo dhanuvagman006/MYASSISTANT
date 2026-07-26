@@ -409,6 +409,7 @@ class VoiceService {
   /// margin ABOVE that floor.
   Future<String?> recordUntilSilence({
     int maxSeconds = 15,
+    int noSpeechTimeoutMs = 8000,
     void Function(double level)? onLevel, // 0..1 for UI animation
   }) async {
     try {
@@ -472,8 +473,8 @@ class VoiceService {
           silentMs = 0;
         } else if (db < quietDb) {
           silentMs += 200;
-          // No speech at all for 8s -> give up quietly.
-          if (!started && totalMs >= 8000) break;
+          // No speech at all within the window -> give up quietly.
+          if (!started && totalMs >= noSpeechTimeoutMs) break;
           // Finished talking: 1.6s of silence after speech.
           if (started && silentMs >= 1600) break;
         }

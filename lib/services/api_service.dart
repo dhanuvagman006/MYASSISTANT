@@ -32,6 +32,10 @@ class ApiService {
   static double? geoLat;
   static double? geoLng;
 
+  /// One long-lived client: the TCP+TLS connection to the backend stays
+  /// open between turns, saving a full handshake on every voice exchange.
+  static final http.Client _client = http.Client();
+
   static Map<String, String> get _authHeaders => {
         'Content-Type': 'application/json',
         if (sessionToken != null) 'Authorization': 'Bearer $sessionToken'
@@ -122,7 +126,7 @@ class ApiService {
   /// Style preferences (A4) ride as headers — zero extra round-trips.
   static Future<ChatMessage> sendChat(List<ChatMessage> history) async {
     final prefs = StylePrefs.instance;
-    final r = await http
+    final r = await _client
         .post(
           Uri.parse('$baseUrl/chat'),
           headers: {
@@ -149,6 +153,59 @@ class ApiService {
       content: (j['reply'] as String?) ?? '',
       sources: ChatSource.listFromJson(j['sources']),
     );
+  }
+
+  /// STREAMING chat for the voice loop (Gemini-Live-style latency).
+  /// Calls [onDelta] with each text fragment the moment the model writes
+  /// it; returns the complete reply with sources when the stream ends.
+  /// Throws if the stream can't start — caller falls back to [sendChat].
+  static Future<ChatMessage> sendChatStream(
+    List<ChatMessage> history, {
+    required void Function(String delta) onDelta,
+  }) async {
+    final prefs = StylePrefs.instance;
+    final req = http.Request('POST', Uri.parse('$baseUrl/chat/stream'))
+      ..headers.addAll({
+        ..._chatHeaders,
+        'X-Style-Tone': prefs.tone,
+        'X-Style-Length': prefs.answerLength,
+      })
+      ..body = jsonEncode({
+        'messages': history.map((m) => m.toJson()).toList(),
+        'language': 'auto',
+      });
+
+    // 20 s to first byte; 30 s max gap between chunks mid-stream.
+    final resp = await _client.send(req).timeout(const Duration(seconds: 20));
+    if (resp.statusCode != 200) throw Exception('stream ${resp.statusCode}');
+
+    final full = StringBuffer();
+    var sources = const <ChatSource>[];
+    var lineBuf = '';
+    await for (final chunk in resp.stream
+        .transform(utf8.decoder)
+        .timeout(const Duration(seconds: 30))) {
+      lineBuf += chunk;
+      int nl;
+      while ((nl = lineBuf.indexOf('\n')) >= 0) {
+        final line = lineBuf.substring(0, nl).trim();
+        lineBuf = lineBuf.substring(nl + 1);
+        if (line.isEmpty) continue;
+        final j = jsonDecode(line) as Map<String, dynamic>;
+        final d = j['d'] as String?;
+        if (d != null && d.isNotEmpty) {
+          full.write(d);
+          onDelta(d);
+        }
+        if (j['done'] == true) {
+          sources = ChatSource.listFromJson(j['sources']);
+        }
+        if (j['error'] != null) throw Exception('assistant unavailable');
+      }
+    }
+    if (full.isEmpty) throw Exception('empty stream');
+    return ChatMessage(
+        role: 'assistant', content: full.toString(), sources: sources);
   }
 
   /// Personalized spoken greeting for app open / sign-in. The backend
