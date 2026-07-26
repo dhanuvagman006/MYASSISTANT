@@ -1,11 +1,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:porcupine_flutter/porcupine_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 import '../models/chat_message.dart';
+import '../models/vision_result.dart';
 import 'api_service.dart';
 import 'auth_service.dart';
 import 'call_service.dart';
@@ -288,6 +290,113 @@ class AssistantController extends ChangeNotifier {
     ask();
   }
 
+  // ---------------- VOICE-DRIVEN CAMERA (Group B x voice) ----------------
+
+  /// While set, the current conversation is ABOUT this photo: every
+  /// follow-up question routes to /vision with the photo re-attached,
+  /// so "what's the dosage?" after "help me understand this" just works.
+  /// Cleared when the conversation ends, on "close camera", or replaced
+  /// by "take another photo".
+  List<int>? _visionBytes;
+  final List<ChatMessage> _visionThread = [];
+
+  /// Camera words across the languages Hari hears most, script + Latin
+  /// (covers "camera open madu", "photo tegi", "कैमरा खोलो"…).
+  static final _cameraWord = RegExp(
+      r'camera|kamera|ಕ್ಯಾಮ|कैमर|ക്യാമ|கேமர|కెమె|ਕੈਮਰ|ক্যামে',
+      caseSensitive: false);
+  static final _photoTake = RegExp(
+      r'\btake (a )?(photo|picture|pic)\b|\bclick (a )?(photo|pic)\b|'
+      r'\b(photo|pic|picture|snap)\b\s*\b(tegi|le lo|lo|khinch|eduk|edu)\b|'
+      r'ಫೋಟೋ|फोटो (लो|खींच)|ഫോട്ടോ എടു|புகைப்படம்|ఫోటో తీ',
+      caseSensitive: false);
+  static final _cameraClose = RegExp(
+      r'close (the )?camera|stop (the )?camera|forget (the )?(photo|picture)|'
+      r'ಕ್ಯಾಮೆರಾ (ಕ್ಲೋಸ್|ಮುಚ್ಚು)|कैमरा बंद|ക്യാമറ അടയ',
+      caseSensitive: false);
+
+  static bool wantsCamera(String q) =>
+      _cameraWord.hasMatch(q) || _photoTake.hasMatch(q);
+
+  /// Opens the camera, captures, and speaks an answer grounded in the
+  /// photo. Returns null when [question] wasn't a camera request.
+  Future<bool?> _maybeHandleCamera(String question) async {
+    if (_cameraClose.hasMatch(question)) {
+      if (_visionBytes == null) return null;
+      _clearVision();
+      await _sayLocal('Okay, done with the photo.');
+      return true; // conversation continues, back to normal chat
+    }
+    if (!wantsCamera(question)) return null;
+
+    _clearVision();
+    await _sayLocal('Opening the camera.');
+    final XFile? shot;
+    try {
+      shot = await ImagePicker().pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1920,
+        maxHeight: 1920,
+        imageQuality: 82, // ~1 MB uploads — fast on mobile data
+      );
+    } catch (_) {
+      await _sayLocal("I couldn't open the camera.");
+      return true;
+    }
+    if (shot == null) {
+      await _sayLocal('Okay.');
+      return true; // user backed out; keep the conversation alive
+    }
+    _visionBytes = await shot.readAsBytes();
+    return _askVision(question);
+  }
+
+  /// One /vision turn about the captured photo (first ask or follow-up).
+  Future<bool> _askVision(String question) async {
+    state = OrbState.thinking;
+    lastHeard = question;
+    lastReply = null;
+    notifyListeners();
+
+    String answer;
+    try {
+      final r = await ApiService.visionAsk(
+        bytes: _visionBytes!,
+        filename: 'voice_capture.jpg',
+        mimeType: 'image/jpeg',
+        mode: 'ask',
+        question:
+            '$question (Answer for VOICE: short, conversational, and in the '
+            'same language the question was asked in.)',
+        history: _visionThread,
+      );
+      answer = r.answer;
+      _visionThread
+        ..add(ChatMessage(role: 'user', content: question))
+        ..add(ChatMessage(role: 'assistant', content: answer));
+      // The photo exchange also lands in normal history, so if the user
+      // drifts to other topics the AI still knows what was discussed.
+      _history
+        ..add(ChatMessage(role: 'user', content: question))
+        ..add(ChatMessage(role: 'assistant', content: answer));
+    } catch (_) {
+      answer = "I couldn't analyze that. Please check your connection.";
+    }
+
+    _followReplyLanguage(answer);
+    state = OrbState.speaking;
+    lastReply = answer;
+    partial = '';
+    notifyListeners();
+    await _voice.speak(answer);
+    return !_speechAborted; // orb tap while speaking ends the conversation
+  }
+
+  void _clearVision() {
+    _visionBytes = null;
+    _visionThread.clear();
+  }
+
   // ---------------- THE ANSWER LOOP ----------------
 
   Future<void> ask() async {
@@ -325,6 +434,7 @@ class AssistantController extends ChangeNotifier {
       await Future.delayed(const Duration(milliseconds: 150));
     }
 
+    _clearVision(); // photo context lives only within one conversation
     state = OrbState.idle;
     notifyListeners();
     await _startWake();
@@ -424,6 +534,14 @@ class AssistantController extends ChangeNotifier {
     // DEVICE ACTIONS FIRST: "call amma" is handled entirely on-device
     // (contacts + dialer) — private, instant, works offline.
     if (await _handleCallIntent(question)) return false;
+
+    // CAMERA: "open camera and help me understand this" — opens the
+    // camera, then answers grounded in the photo. "Take another photo"
+    // recaptures; "close camera" returns to normal chat.
+    final cam = await _maybeHandleCamera(question);
+    if (cam != null) return cam;
+    // Active photo context → this follow-up is about the photo.
+    if (_visionBytes != null) return _askVision(question);
 
     state = OrbState.thinking;
     lastHeard = question;
