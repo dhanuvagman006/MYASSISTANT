@@ -399,7 +399,11 @@ class AssistantController extends ChangeNotifier {
 
   // ---------------- THE ANSWER LOOP ----------------
 
-  Future<void> ask() async {
+  /// Text-initiated spoken turn (e.g. the Daily tab's briefing button):
+  /// Hari answers aloud, then listens for follow-ups like any conversation.
+  Future<void> runText(String question) => ask(text: question);
+
+  Future<void> ask({String? text}) async {
     // A denied-then-granted mic permission used to leave the app stuck on
     // "Microphone unavailable" until restart — retry initialization here.
     if (!micReady) {
@@ -419,12 +423,18 @@ class AssistantController extends ChangeNotifier {
     // The conversation ends when the user simply stays quiet (~6 s),
     // taps the orb, or the turn was a device action (e.g. a phone call).
     var followUp = false;
+    var pendingText = text;
     while (true) {
-      state = OrbState.listening;
-      partial = '';
-      notifyListeners();
-
-      final question = await _captureAnyLanguage(followUp: followUp);
+      String question;
+      if (pendingText != null) {
+        question = pendingText; // first turn came typed, not spoken
+        pendingText = null;
+      } else {
+        state = OrbState.listening;
+        partial = '';
+        notifyListeners();
+        question = await _captureAnyLanguage(followUp: followUp);
+      }
       if (question.trim().isEmpty) break; // silence or cancel → done
 
       final keepGoing = await _answerOnce(question);

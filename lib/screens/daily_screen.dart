@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 
 import '../models/reminder.dart';
 import '../services/api_service.dart';
+import '../services/assistant_controller.dart';
 import '../services/notification_service.dart';
+import '../widgets/nearby_section.dart';
 import '../theme/app_theme.dart';
 
 /// Screen 03 — Daily briefing (C1, C2, D3, D4). Now LIVE:
@@ -190,6 +192,29 @@ class _DailyScreenState extends State<DailyScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         children: [
+          // ---------------- MORNING BRIEFING (C2) ----------------
+          Card(
+            color: AppColors.peacock.withValues(alpha: 0.08),
+            child: ListTile(
+              leading:
+                  const Icon(Icons.wb_twilight_rounded, color: AppColors.peacock),
+              title: const Text('Morning briefing'),
+              subtitle: const Text(
+                  'Weather, calendar, reminders and headlines — spoken.'),
+              trailing: const Icon(Icons.play_circle_fill_rounded,
+                  color: AppColors.peacock, size: 34),
+              onTap: () =>
+                  AssistantController.instance.runText('Give me my daily briefing'),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // ---------------- NEARBY (C3) ----------------
+          const Padding(
+            padding: EdgeInsets.only(bottom: 16),
+            child: NearbySection(),
+          ),
+
           // ---------------- WEATHER ----------------
           if (_weather != null)
             _WeatherCard(weather: _weather!)

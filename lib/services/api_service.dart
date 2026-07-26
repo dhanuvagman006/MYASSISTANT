@@ -5,6 +5,7 @@ import 'package:http_parser/http_parser.dart' show MediaType;
 
 import '../models/chat_message.dart';
 import '../models/memory_item.dart';
+import '../models/place.dart';
 import '../models/reminder.dart';
 import '../models/vision_result.dart';
 import '../models/remote_config.dart';
@@ -156,6 +157,28 @@ class ApiService {
       sources: ChatSource.listFromJson(j['sources']),
     );
   }
+
+  /// C3 — nearby places search; geo rides on the standard headers.
+  static Future<List<Place>> fetchPlaces(String q) async {
+    final r = await _client
+        .get(
+          Uri.parse('$baseUrl/places?q=${Uri.encodeQueryComponent(q)}'),
+          headers: _chatHeaders, // includes X-Geo-Lat/Lng when known
+        )
+        .timeout(const Duration(seconds: 15));
+    if (r.statusCode != 200) throw Exception('places ${r.statusCode}');
+    return ((jsonDecode(r.body)['places'] as List?) ?? [])
+        .map((j) => Place.fromJson(j as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Proxied Google place photo (key stays server-side).
+  static String placePhotoUrl(String ref) =>
+      '$baseUrl/places/photo?ref=${Uri.encodeQueryComponent(ref)}';
+
+  /// Auth headers for Image.network on protected endpoints (place photos).
+  static Map<String, String> get imageHeaders => Map.of(_authHeaders)
+    ..remove('Content-Type');
 
   /// Group B — vision: photo Q&A (B1), document reading (B2), OCR (B3),
   /// screenshot helper (B4). One multipart call; [history] lets
