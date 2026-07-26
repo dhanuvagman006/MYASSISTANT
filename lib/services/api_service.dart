@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart' show MediaType;
 
 import '../models/chat_message.dart';
 import '../models/memory_item.dart';
 import '../models/reminder.dart';
+import '../models/vision_result.dart';
 import '../models/remote_config.dart';
 import 'style_prefs.dart';
 
@@ -153,6 +155,36 @@ class ApiService {
       content: (j['reply'] as String?) ?? '',
       sources: ChatSource.listFromJson(j['sources']),
     );
+  }
+
+  /// Group B — vision: photo Q&A (B1), document reading (B2), OCR (B3),
+  /// screenshot helper (B4). One multipart call; [history] lets
+  /// follow-up questions reuse the same uploaded file.
+  static Future<VisionResult> visionAsk({
+    required List<int> bytes,
+    required String filename,
+    required String mimeType,
+    String mode = 'ask', // ask | ocr | screenshot
+    String question = '',
+    List<ChatMessage> history = const [],
+  }) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/vision'))
+      ..headers.addAll(
+          Map.of(_authHeaders)..remove('Content-Type')) // multipart sets its own
+      ..fields['mode'] = mode
+      ..fields['question'] = question
+      ..fields['history'] =
+          jsonEncode(history.map((m) => m.toJson()).toList())
+      ..files.add(http.MultipartFile.fromBytes('file', bytes,
+          filename: filename, contentType: MediaType.parse(mimeType)));
+
+    final resp = await _client.send(req).timeout(const Duration(seconds: 90));
+    final body = await resp.stream.bytesToString();
+    if (resp.statusCode != 200) {
+      throw Exception('vision ${resp.statusCode}');
+    }
+    final j = jsonDecode(body) as Map<String, dynamic>;
+    return VisionResult.fromJson(j);
   }
 
   /// STREAMING chat for the voice loop (Gemini-Live-style latency).

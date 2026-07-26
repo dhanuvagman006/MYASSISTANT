@@ -13,6 +13,7 @@ dependencies:
 
   # Networking — talks to the backend only; AI keys never live in the app
   http: ^1.2.2
+  http_parser: ^4.0.2   # MediaType for vision multipart uploads
 
   # Brand typography — Sora (headlines) + Inter (body) per UI Design V1.0
   google_fonts: ^6.2.1
@@ -39,6 +40,10 @@ dependencies:
   # regional recognition. Device STT stays as wake word + fallback.
   record: ^6.1.1
   path_provider: ^2.1.4
+
+  # Group B — camera/gallery photos and PDF picking (B1–B4)
+  image_picker: ^1.1.2
+  file_picker: ^8.1.4
 
   # Voice calling — read contacts + place calls ("Hey Hari, call amma")
   flutter_contacts: ^1.1.9+2
