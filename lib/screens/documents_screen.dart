@@ -6,7 +6,9 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../models/chat_message.dart';
+import '../models/user_document.dart';
 import '../models/vision_result.dart';
+import '../widgets/document_card.dart';
 import '../services/api_service.dart';
 import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
@@ -41,7 +43,84 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   final List<ChatMessage> _thread = [];
   VisionAction? _pendingAction;
   bool _busy = false;
+  bool _saving = false;
   String? _error;
+
+  /// Documents already in Hari's long-term memory (server-side).
+  List<UserDocument> _saved = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshSaved();
+  }
+
+  Future<void> _refreshSaved() async {
+    try {
+      final docs = await ApiService.fetchDocuments();
+      if (mounted) setState(() => _saved = docs);
+    } catch (_) {/* signed-out or offline — the section just stays hidden */}
+  }
+
+  // ---------------- SAVE TO HARI'S MEMORY ----------------
+
+  /// Ask for an optional note (e.g. the doctor's suggestions), then upload.
+  /// From then on any chat — typed or voice — can recall this document.
+  Future<void> _saveToMemory() async {
+    final bytes = _bytes;
+    if (bytes == null || _saving) return;
+    final note = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final c = TextEditingController();
+        return AlertDialog(
+          title: const Text('Save to Hari\'s memory'),
+          content: TextField(
+            controller: c,
+            maxLines: 4,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText:
+                  'Optional note — e.g. what the doctor suggested, what to take, when to come back…',
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, c.text.trim()),
+                child: const Text('Save')),
+          ],
+        );
+      },
+    );
+    if (note == null || !mounted) return; // cancelled
+    setState(() => _saving = true);
+    try {
+      await ApiService.uploadDocument(
+          bytes: bytes, filename: _filename, mimeType: _mime, note: note);
+      await _refreshSaved();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text(
+              'Saved. Just ask me later — "show me that report" — and I\'ll pull it up.')));
+    } catch (_) {
+      if (mounted) {
+        setState(() =>
+            _error = "Couldn't save that. Sign in and check your connection.");
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _deleteSaved(UserDocument d) async {
+    try {
+      await ApiService.deleteDocument(d.id);
+      await _refreshSaved();
+    } catch (_) {}
+  }
 
   // ---------------- FILE PICKING ----------------
 
@@ -247,9 +326,27 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     final hasFile = _bytes != null;
     return Column(
       children: [
+        if (!hasFile && _saved.isNotEmpty) _savedStrip(),
         Expanded(
           child: hasFile ? _threadView() : _emptyState(),
         ),
+        if (hasFile)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.tonalIcon(
+                onPressed: _saving ? null : _saveToMemory,
+                icon: _saving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.bookmark_add_rounded, size: 18),
+                label: Text(_saving ? 'Saving…' : 'Remember this'),
+              ),
+            ),
+          ),
         if (_error != null)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -258,6 +355,44 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
           ),
         if (hasFile) _inputBar(),
       ],
+    );
+  }
+
+  /// Horizontal strip of everything Hari already remembers.
+  Widget _savedStrip() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 0, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('HARI REMEMBERS',
+              style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.1,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurface
+                      .withValues(alpha: 0.55))),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 64,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _saved.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (_, i) => ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 230),
+                child: DocumentCard(
+                  doc: _saved[i],
+                  compact: true,
+                  onDelete: () => _deleteSaved(_saved[i]),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 import '../models/chat_message.dart';
+import '../models/user_document.dart';
 import '../models/vision_result.dart';
 import 'api_service.dart';
 import 'auth_service.dart';
@@ -47,6 +48,11 @@ class AssistantController extends ChangeNotifier {
   String partial = '';
   String? lastHeard;
   String? lastReply;
+
+  /// Documents Hari recalled for the LAST spoken answer — the voice screen
+  /// shows them as tappable cards while the reply is being spoken, so
+  /// "show me the report from my last hospital visit" really pops it up.
+  List<UserDocument> lastDocuments = const [];
 
   /// Live input loudness 0..1 while recording — drives the orb pulse so
   /// the user can SEE the mic is hearing them.
@@ -356,6 +362,7 @@ class AssistantController extends ChangeNotifier {
     state = OrbState.thinking;
     lastHeard = question;
     lastReply = null;
+    lastDocuments = const [];
     notifyListeners();
 
     String answer;
@@ -556,6 +563,7 @@ class AssistantController extends ChangeNotifier {
     state = OrbState.thinking;
     lastHeard = question;
     lastReply = null;
+    lastDocuments = const [];
     _speechAborted = false;
     notifyListeners();
 
@@ -615,6 +623,7 @@ class AssistantController extends ChangeNotifier {
       pending = answer.content;
     }
     _history.add(answer);
+    lastDocuments = answer.documents;
     final reply = answer.content;
 
     // FOLLOW THE CONVERSATION'S LANGUAGE: if Hari answered in Kannada,
@@ -708,6 +717,7 @@ class AssistantController extends ChangeNotifier {
     if (name == null) return false;
     lastHeard = question;
     lastReply = null;
+    lastDocuments = const [];
     notifyListeners();
 
     final matches = await svc.findContacts(name);

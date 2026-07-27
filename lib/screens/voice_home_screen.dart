@@ -4,6 +4,7 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 import '../services/assistant_controller.dart';
 import '../theme/app_theme.dart';
+import '../widgets/document_card.dart';
 
 /// Screen 01 — Voice Home (A1–A4, M1).
 /// A thin view over AssistantController: the wake/answer loop keeps
@@ -129,6 +130,26 @@ class _VoiceHomeScreenState extends State<VoiceHomeScreen>
                 ),
                 if (a.lastHeard != null) ...[
                   _TranscriptCard(heard: a.lastHeard!, reply: a.lastReply),
+                  // Recalled documents pop up under the spoken answer.
+                  if (a.lastDocuments.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: SizedBox(
+                        height: 64,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: a.lastDocuments.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 8),
+                          itemBuilder: (_, i) => ConstrainedBox(
+                            constraints:
+                                const BoxConstraints(maxWidth: 240),
+                            child: DocumentCard(
+                                doc: a.lastDocuments[i], compact: true),
+                          ),
+                        ),
+                      ),
+                    ),
                   const SizedBox(height: 12),
                 ],
                 Wrap(

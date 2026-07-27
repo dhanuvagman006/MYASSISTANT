@@ -7,6 +7,7 @@ import '../models/chat_message.dart';
 import '../models/memory_item.dart';
 import '../models/place.dart';
 import '../models/reminder.dart';
+import '../models/user_document.dart';
 import '../models/vision_result.dart';
 import '../models/remote_config.dart';
 import 'style_prefs.dart';
@@ -155,6 +156,7 @@ class ApiService {
       role: 'assistant',
       content: (j['reply'] as String?) ?? '',
       sources: ChatSource.listFromJson(j['sources']),
+      documents: UserDocument.listFromJson(j['documents']),
     );
   }
 
@@ -210,6 +212,51 @@ class ApiService {
     return VisionResult.fromJson(j);
   }
 
+
+  // ---------------------------------------------------------------------
+  // SAVED DOCUMENTS — Hari's long-term document memory. Upload once; the
+  // backend analyzes it (title/date/summary/tags) and can recall it later
+  // from a plain voice request in any chat.
+  // ---------------------------------------------------------------------
+
+  /// Save a file into Hari's memory. [note] is the user's own words —
+  /// e.g. what the doctor suggested — recited back on recall.
+  static Future<UserDocument> uploadDocument({
+    required List<int> bytes,
+    required String filename,
+    required String mimeType,
+    String note = '',
+  }) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/docs'))
+      ..headers.addAll(Map.of(_authHeaders)..remove('Content-Type'))
+      ..fields['note'] = note
+      ..files.add(http.MultipartFile.fromBytes('file', bytes,
+          filename: filename, contentType: MediaType.parse(mimeType)));
+    final resp = await _client.send(req).timeout(const Duration(seconds: 90));
+    final body = await resp.stream.bytesToString();
+    if (resp.statusCode != 200) throw Exception('docs ${resp.statusCode}');
+    return UserDocument.fromJson(
+        (jsonDecode(body) as Map<String, dynamic>)['document']
+            as Map<String, dynamic>);
+  }
+
+  static Future<List<UserDocument>> fetchDocuments() async {
+    final r = await _client
+        .get(Uri.parse('$baseUrl/docs'), headers: _authHeaders)
+        .timeout(const Duration(seconds: 15));
+    if (r.statusCode != 200) throw Exception('docs ${r.statusCode}');
+    return UserDocument.listFromJson(jsonDecode(r.body)['documents']);
+  }
+
+  static Future<void> deleteDocument(int id) async {
+    await _client
+        .delete(Uri.parse('$baseUrl/docs/$id'), headers: _authHeaders)
+        .timeout(const Duration(seconds: 15));
+  }
+
+  /// URL of the original file bytes (use with [imageHeaders] for auth).
+  static String documentFileUrl(int id) => '$baseUrl/docs/$id/file';
+
   /// STREAMING chat for the voice loop (Gemini-Live-style latency).
   /// Calls [onDelta] with each text fragment the moment the model writes
   /// it; returns the complete reply with sources when the stream ends.
@@ -236,6 +283,7 @@ class ApiService {
 
     final full = StringBuffer();
     var sources = const <ChatSource>[];
+    var documents = const <UserDocument>[];
     var lineBuf = '';
     await for (final chunk in resp.stream
         .transform(utf8.decoder)
@@ -254,13 +302,17 @@ class ApiService {
         }
         if (j['done'] == true) {
           sources = ChatSource.listFromJson(j['sources']);
+          documents = UserDocument.listFromJson(j['documents']);
         }
         if (j['error'] != null) throw Exception('assistant unavailable');
       }
     }
     if (full.isEmpty) throw Exception('empty stream');
     return ChatMessage(
-        role: 'assistant', content: full.toString(), sources: sources);
+        role: 'assistant',
+        content: full.toString(),
+        sources: sources,
+        documents: documents);
   }
 
   /// Personalized spoken greeting for app open / sign-in. The backend

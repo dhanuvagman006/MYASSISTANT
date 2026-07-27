@@ -251,3 +251,16 @@ flutter run --dart-define=BASE_URL=http://<LAPTOP_LAN_IP>:3000 \
     - No new dependencies (url_launcher already present).
     - Voice flow needs NO app changes — "order a pizza" rides the existing
       /chat intent pipeline; Hari speaks the cart and waits for "yes".
+
+## Document memory (client feature) — DONE (this session)
+- Documents screen: **"Remember this"** button after loading any photo/PDF →
+  optional note dialog ("what did the doctor say…") → uploads to `/docs`;
+  a **HARI REMEMBERS** strip lists saved docs (tap = full viewer with the
+  original image, AI summary, and your note; "Forget this document" deletes).
+- ChatMessage now carries `documents`; parsed from `/chat` and the stream
+  `done` line in ApiService.
+- Voice loop: AssistantController exposes `lastDocuments`; the voice home
+  screen shows tappable document cards under the transcript while the answer
+  is spoken — "show me my last hospital report" pops the file up hands-free.
+- Chat screen renders the same DocumentCard under assistant bubbles.
+- New: lib/models/user_document.dart, lib/widgets/document_card.dart.

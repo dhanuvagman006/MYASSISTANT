@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../models/chat_message.dart';
+import '../widgets/document_card.dart';
 import '../services/api_service.dart';
 import '../services/app_strings.dart';
 import '../theme/app_theme.dart';
@@ -248,13 +249,26 @@ class _Bubble extends StatelessWidget {
         ),
       );
 
-    // A5 — live-information sources shown under the reply.
-    final child = msg.sources.isEmpty
+    // A5 — live-information sources + recalled documents under the reply.
+    final child = msg.sources.isEmpty && msg.documents.isEmpty
         ? bubble
         : Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
-            children: [bubble, _SourceChips(msg.sources)],
+            children: [
+              bubble,
+              // Documents Hari pulled from memory ("show me that report").
+              for (final d in msg.documents)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                        maxWidth: MediaQuery.of(context).size.width * 0.78),
+                    child: DocumentCard(doc: d),
+                  ),
+                ),
+              if (msg.sources.isNotEmpty) _SourceChips(msg.sources),
+            ],
           );
 
     return Align(
