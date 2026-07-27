@@ -240,3 +240,14 @@ flutter run --dart-define=BASE_URL=http://<LAPTOP_LAN_IP>:3000 \
   _KeepAliveHandler). TRADE-OFF: no screen-off wake word for now — wake word
   works while the app is open. Revisit when the plugin ships a Built-in-Kotlin
   / JVM-17 release (or re-add with kotlin.jvm.target.validation.mode=warning).
+
+11. **Swiggy food ordering (27 Jul 2026)** — pairs with the backend's Swiggy
+    MCP integration (see backend PROJECT_STATUS). App side:
+    - `ApiService.swiggyLinked() / swiggyConnectUrl() / disconnectSwiggy()`.
+    - Privacy screen → Connected Services now has a LIVE Swiggy row:
+      Connect opens the browser (Swiggy phone + OTP OAuth; app never holds
+      Swiggy tokens), status auto-refreshes on app resume via
+      WidgetsBindingObserver; tap when connected → confirm-disconnect.
+    - No new dependencies (url_launcher already present).
+    - Voice flow needs NO app changes — "order a pizza" rides the existing
+      /chat intent pipeline; Hari speaks the cart and waits for "yes".

@@ -318,6 +318,40 @@ class ApiService {
     if (r.statusCode != 200) throw Exception('Could not delete (${r.statusCode})');
   }
 
+  // ---------------- SWIGGY (FOOD ORDERING) ----------------
+
+  /// Whether this account has linked Swiggy (Builders Club MCP).
+  static Future<bool> swiggyLinked() async {
+    try {
+      final r = await http
+          .get(Uri.parse('$baseUrl/swiggy/status'), headers: _authHeaders)
+          .timeout(const Duration(seconds: 10));
+      return r.statusCode == 200 &&
+          (jsonDecode(r.body)['linked'] as bool? ?? false);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Browser URL for the Swiggy phone+OTP link flow (backend builds it
+  /// with PKCE; the app never sees Swiggy tokens).
+  static Future<String> swiggyConnectUrl() async {
+    final r = await http
+        .get(Uri.parse('$baseUrl/swiggy/connect'), headers: _authHeaders)
+        .timeout(const Duration(seconds: 15));
+    if (r.statusCode != 200) {
+      throw Exception(
+          (jsonDecode(r.body)['error'] as String?) ?? 'Swiggy unavailable');
+    }
+    return jsonDecode(r.body)['url'] as String;
+  }
+
+  static Future<void> disconnectSwiggy() async {
+    await http
+        .delete(Uri.parse('$baseUrl/swiggy'), headers: _authHeaders)
+        .timeout(const Duration(seconds: 15));
+  }
+
   // ---------------- GOOGLE (GMAIL + CALENDAR) ----------------
 
   static Future<void> connectGoogle(String serverAuthCode) async {

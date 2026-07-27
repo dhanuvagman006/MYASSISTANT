@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/memory_item.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
@@ -28,6 +29,8 @@ class PrivacyScreen extends StatelessWidget {
           title: 'CONNECTED SERVICES',
           child: Column(
             children: const [
+              _SwiggyRow(),
+              Divider(height: 1),
               _ServiceRow(icon: Icons.mail_outline_rounded, name: 'Gmail'),
               Divider(height: 1),
               _ServiceRow(
@@ -335,6 +338,132 @@ class _EmptyRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// LIVE Swiggy row — connect once, then "Hey Hari, order a pizza" works.
+/// The link happens in the BROWSER (Swiggy phone + OTP via OAuth); when the
+/// user comes back to the app we re-check status automatically.
+class _SwiggyRow extends StatefulWidget {
+  const _SwiggyRow();
+
+  @override
+  State<_SwiggyRow> createState() => _SwiggyRowState();
+}
+
+class _SwiggyRowState extends State<_SwiggyRow> with WidgetsBindingObserver {
+  bool? _linked; // null = loading
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _refresh();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // Returning from the browser after OTP → status may have changed.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final linked = await ApiService.swiggyLinked();
+    if (mounted) setState(() => _linked = linked);
+  }
+
+  Future<void> _connect() async {
+    setState(() => _busy = true);
+    try {
+      final url = await ApiService.swiggyConnectUrl();
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Swiggy link is unavailable right now — '
+                  'please try again in a moment.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _disconnect() async {
+    final sure = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Disconnect Swiggy?'),
+        content: const Text(
+            'Hari will no longer be able to order food for you by voice.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text('Disconnect')),
+        ],
+      ),
+    );
+    if (sure != true) return;
+    setState(() => _busy = true);
+    await ApiService.disconnectSwiggy();
+    if (mounted) setState(() => _busy = false);
+    _refresh();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final Widget trailing;
+    if (_linked == null || _busy) {
+      trailing = const SizedBox(
+          width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2));
+    } else if (_linked == true) {
+      trailing = Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: AppColors.peacock.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Text('Connected',
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.peacock)),
+      );
+    } else {
+      trailing = FilledButton.tonal(
+        onPressed: _connect,
+        style: FilledButton.styleFrom(
+            visualDensity: VisualDensity.compact,
+            padding: const EdgeInsets.symmetric(horizontal: 14)),
+        child: const Text('Connect'),
+      );
+    }
+    return ListTile(
+      leading: Icon(Icons.lunch_dining_outlined, color: scheme.primary),
+      title: const Text('Swiggy',
+          style: TextStyle(fontWeight: FontWeight.w500)),
+      subtitle: Text(
+        _linked == true
+            ? 'Say "order a pizza" and Hari handles it'
+            : 'Let Hari order food by voice',
+        style: TextStyle(
+            fontSize: 12, color: scheme.onSurface.withValues(alpha: 0.55)),
+      ),
+      trailing: trailing,
+      onTap: _linked == true ? _disconnect : null,
     );
   }
 }
