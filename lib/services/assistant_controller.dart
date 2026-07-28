@@ -324,6 +324,84 @@ class AssistantController extends ChangeNotifier {
   static bool wantsCamera(String q) =>
       _cameraWord.hasMatch(q) || _photoTake.hasMatch(q);
 
+  // ------------- VOICE "SAVE THIS RECEIPT" (Group B x voice x memory) ----
+
+  /// Save/remember verbs, script + Latin transliteration
+  /// ("save madu", "yaad rakho", "ಸೇವ್ ಮಾಡು", "सेव करो"…).
+  static final _saveVerb = RegExp(
+      r'\b(save|remember|keep|store|file)\b|save (ma+du|karo)|yaad rakh|'
+      r'ಸೇವ್|ನೆನಪ|ಇಟ್ಟುಕೊ|सेव|सहेज|याद रख|സേവ്|ഓർത്ത|சேமி|ஞாபக|సేవ్|గుర్తు',
+      caseSensitive: false);
+
+  /// Things people photograph to keep: receipts, bills, prescriptions…
+  static final _docNoun = RegExp(
+      r'receipt|reciept|bill\b|invoice|prescription|document|report|'
+      r'warranty|slip|voucher|statement|ticket|'
+      r'ರಸೀದಿ|ಬಿಲ್|ದಾಖಲೆ|रसीद|बिल|पर्च|दस्तावेज|രസീത|ബില്‍|ரசீது|பில்|రసీదు|బిల',
+      caseSensitive: false);
+
+  static final _thisPhoto = RegExp(
+      r'\b(this|it|that)\b|photo|picture|pic\b|ಇದ|इस|ये|यह|ഇത|இத|ఇద',
+      caseSensitive: false);
+
+  /// "Save this receipt" → camera opens, the shot is filed into Hari's
+  /// document memory (/docs analyzes it in the background), and the
+  /// conversation carries on. If a photo is already on the table
+  /// ("what's this?" … "save it") that photo is saved without reopening
+  /// the camera. Returns null when [question] wasn't a save request.
+  Future<bool?> _maybeHandleSaveDocument(String question) async {
+    if (!_saveVerb.hasMatch(question)) return null;
+    final photoOnTable =
+        _visionBytes != null && _thisPhoto.hasMatch(question);
+    // Plain "remember that mom's birthday is in May" is a memory fact for
+    // the backend, NOT a document — require a document word (or an active
+    // photo being referred to).
+    if (!_docNoun.hasMatch(question) && !photoOnTable) return null;
+
+    List<int>? bytes = photoOnTable ? _visionBytes : null;
+    if (bytes == null) {
+      await _sayLocal('Sure — show it to the camera.');
+      final XFile? shot;
+      try {
+        shot = await ImagePicker().pickImage(
+          source: ImageSource.camera,
+          maxWidth: 1920,
+          maxHeight: 1920,
+          imageQuality: 82,
+        );
+      } catch (_) {
+        await _sayLocal("I couldn't open the camera.");
+        return true;
+      }
+      if (shot == null) {
+        await _sayLocal('Okay, nothing saved.');
+        return true; // user backed out; keep talking
+      }
+      bytes = await shot.readAsBytes();
+    }
+
+    state = OrbState.thinking;
+    lastHeard = question;
+    notifyListeners();
+    try {
+      // note = the user's own words — recited back on recall, which makes
+      // "the receipt I saved after the Apollo visit" findable.
+      await ApiService.uploadDocument(
+        bytes: bytes,
+        filename:
+            'voice_save_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        mimeType: 'image/jpeg',
+        note: question,
+      );
+      await _sayLocal(
+          "Saved. Ask me for it anytime — I'll remember what's on it.");
+    } catch (_) {
+      await _sayLocal(
+          "I couldn't save that — please check your connection and try once more.");
+    }
+    return true; // conversation continues either way
+  }
+
   /// Opens the camera, captures, and speaks an answer grounded in the
   /// photo. Returns null when [question] wasn't a camera request.
   Future<bool?> _maybeHandleCamera(String question) async {
@@ -551,6 +629,13 @@ class AssistantController extends ChangeNotifier {
     // DEVICE ACTIONS FIRST: "call amma" is handled entirely on-device
     // (contacts + dialer) — private, instant, works offline.
     if (await _handleCallIntent(question)) return false;
+
+    // SAVE A DOCUMENT: "save this receipt" — must run BEFORE the camera
+    // handler ("take a photo of the bill and save it" contains photo
+    // words) and before photo follow-ups ("save it" about the current
+    // photo files it instead of asking vision about it).
+    final saved = await _maybeHandleSaveDocument(question);
+    if (saved != null) return saved;
 
     // CAMERA: "open camera and help me understand this" — opens the
     // camera, then answers grounded in the photo. "Take another photo"
