@@ -1,3 +1,4 @@
+import 'dart:async' show TimeoutException;
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -218,14 +219,45 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
           _pendingAction = r.action ?? _pendingAction;
         }
       });
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
-        setState(() => _error = "Couldn't analyze that. Check your connection.");
+        setState(() => _error = _friendlyVisionError(e));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
       _scrollDown();
     }
+  }
+
+  /// Turn a vision failure into a message that tells the user what is
+  /// actually wrong — a missing server key, an expired sign-in and a real
+  /// network drop each need a DIFFERENT next step.
+  String _friendlyVisionError(Object e) {
+    if (e is VisionException) {
+      switch (e.status) {
+        case 401:
+          return 'Your session expired — please sign in again.';
+        case 413:
+          return 'That file is too large. Try a smaller photo or a shorter PDF.';
+        case 415:
+          return "That file type isn't supported — use a JPG, PNG, WebP or PDF.";
+        case 429:
+          return 'Too many requests right now — give it a few seconds and retry.';
+        case 503:
+          return 'Photo analysis is temporarily unavailable on the server. '
+              'Please try again later.';
+        default:
+          return e.serverMessage.isNotEmpty
+              ? 'Analysis failed: ${e.serverMessage}'
+              : 'Analysis failed on the server (error ${e.status}). Try again.';
+      }
+    }
+    if (e is TimeoutException) {
+      return 'That took too long — big files can time out. Try again or use a smaller file.';
+    }
+    // SocketException / handshake errors — the only case that is truly
+    // the user's connection.
+    return "Couldn't reach the server. Check your connection and try again.";
   }
 
   void _scrollDown() {

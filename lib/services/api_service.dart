@@ -14,6 +14,30 @@ import 'style_prefs.dart';
 
 /// All network traffic goes app → backend → AI providers.
 /// The app never holds AI provider keys.
+/// Thrown when /vision returns a non-200 so screens can show the REAL
+/// reason (server not configured, signed out, file too big…) instead of
+/// a generic "check your connection".
+class VisionException implements Exception {
+  final int status;
+
+  /// The backend's `{"error": "..."}` message, if it sent one.
+  final String serverMessage;
+
+  VisionException(this.status, String rawBody)
+      : serverMessage = _extract(rawBody);
+
+  static String _extract(String body) {
+    try {
+      final j = jsonDecode(body);
+      if (j is Map && j['error'] is String) return j['error'] as String;
+    } catch (_) {}
+    return '';
+  }
+
+  @override
+  String toString() => 'VisionException($status, $serverMessage)';
+}
+
 class ApiService {
   /// Point this at your backend.
   /// Android emulator against a local server: http://10.0.2.2:3000
@@ -206,7 +230,7 @@ class ApiService {
     final resp = await _client.send(req).timeout(const Duration(seconds: 90));
     final body = await resp.stream.bytesToString();
     if (resp.statusCode != 200) {
-      throw Exception('vision ${resp.statusCode}');
+      throw VisionException(resp.statusCode, body);
     }
     final j = jsonDecode(body) as Map<String, dynamic>;
     return VisionResult.fromJson(j);
