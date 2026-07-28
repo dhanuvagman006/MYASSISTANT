@@ -334,9 +334,11 @@ class AssistantController extends ChangeNotifier {
       caseSensitive: false);
 
   /// Things people photograph to keep: receipts, bills, prescriptions…
+  /// "recipe" included deliberately — speech-to-text very often hears
+  /// "receipt" as "recipe" ("save the recipe given by Dr. Srikanth").
   static final _docNoun = RegExp(
-      r'receipt|reciept|bill\b|invoice|prescription|document|report|'
-      r'warranty|slip|voucher|statement|ticket|'
+      r'receipt|reciept|recipe|bill\b|invoice|prescription|document|report|'
+      r'warranty|slip|voucher|statement|ticket|certificate|letter|form\b|card\b|'
       r'ರಸೀದಿ|ಬಿಲ್|ದಾಖಲೆ|रसीद|बिल|पर्च|दस्तावेज|രസീത|ബില്‍|ரசீது|பில்|రసీదు|బిల',
       caseSensitive: false);
 
