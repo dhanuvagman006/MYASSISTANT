@@ -1,3 +1,5 @@
+import 'user_document.dart';
+
 class ChatSource {
   final String name;
   final String url;
@@ -16,7 +18,6 @@ class ChatSource {
   }
 }
 
-import 'user_document.dart';
 
 class ChatMessage {
   final String role; // 'user' | 'assistant'
