@@ -859,7 +859,7 @@ class AssistantController extends ChangeNotifier {
   }
 
   /// Hari itself calls [c], speaks with them about [task], then reports
-  /// their answer back to the user. Backend-driven (Twilio): the phone's
+  /// their answer back to the user. Backend-driven (Plivo — India-capable telephony): the phone's
   /// own dialer is never involved, so the loop keeps running while the
   /// call happens and the answer is spoken the moment it lands.
   Future<void> _placeAgentCall(Contact c, String task) async {

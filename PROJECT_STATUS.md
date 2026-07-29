@@ -268,7 +268,7 @@ flutter run --dart-define=BASE_URL=http://<LAPTOP_LAN_IP>:3000 \
 ## Update — 29 July 2026: Agent calls (Hari talks to your contacts)
 "Call Allen Lobo and ask him at what time he will come home" → Hari resolves
 the contact ON-DEVICE (privacy: only the chosen number + task go to the
-backend), the backend dials via Twilio and the AI converses with Allen, the
+backend), the backend dials via Plivo and the AI converses with Allen, the
 app polls `/agent-call/:id` and SPEAKS his answer back ("I spoke with Allen…").
 - `call_service.dart` — `parseAgentCallIntent` → (name, task): "call X and
   ask/tell/inform/let…" plus bare "ask X when/if/what…" phrasings; pronouns
