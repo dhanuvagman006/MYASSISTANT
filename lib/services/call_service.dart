@@ -40,6 +40,59 @@ class CallService {
       r'\b(now|please|for me|right now|immediately|karo|kar|lagao|maadu|madi)\b\s*$',
       caseSensitive: false);
 
+  // ---------------- AGENT CALL PARSING ----------------
+  // "call allen lobo and ask him at what time he will come home"
+  // → the AI itself talks on the call and reports the answer back.
+
+  static final List<RegExp> _agentPatterns = [
+    // "call X and ask/tell/find out …", "phone X to inform her that …"
+    RegExp(
+        r'\b(?:call|dial|phone|ring)\s+(?:to\s+)?([\p{L}\p{M} .\-]{2,40}?)\s+(?:and|to)\s+((?:ask|tell|inform|say|find out|check|confirm|know|let)\b.*)$',
+        caseSensitive: false, unicode: true),
+    // "ask allen lobo when he will come home" / "ask amma if dinner is ready"
+    RegExp(
+        r'^\s*(?:please\s+|can you\s+|hari[, ]+)*ask\s+([\p{L}\p{M} .\-]{2,40}?)\s+((?:if|whether|when|what|where|why|how|at|about|to)\b.*)$',
+        caseSensitive: false, unicode: true),
+  ];
+
+  /// Returns (contactName, task) when [text] asks Hari to call someone
+  /// AND speak to them ("…and ask him when he'll be home"). The task is
+  /// re-phrased around the person's name so the backend AI has full
+  /// context ("ask Allen Lobo at what time he will come home").
+  (String, String)? parseAgentCallIntent(String text) {
+    final t = text.trim();
+    if (t.isEmpty) return null;
+    for (final re in _agentPatterns) {
+      final m = re.firstMatch(t);
+      if (m == null) continue;
+      var name = _cleanName(m.group(1) ?? '');
+      var task = (m.group(2) ?? '').trim();
+      if (name.length < 2 || task.length < 3) continue;
+      // "ask him …" → "ask Allen Lobo …" (unambiguous for the call AI).
+      task = task.replaceFirst(
+          RegExp(r'^(ask|tell|inform|let|say to|confirm with|remind)\s+(him|her|them)\b',
+              caseSensitive: false),
+          (task.split(' ').first) + ' ' + name);
+      if (!RegExp(r'^(ask|tell|inform|say|find out|check|confirm|know|let)',
+              caseSensitive: false)
+          .hasMatch(task)) {
+        task = 'ask $name $task';
+      }
+      return (name, task);
+    }
+    return null;
+  }
+
+  String _cleanName(String raw) {
+    var name = raw.trim();
+    String prev = '';
+    while (prev != name) {
+      prev = name;
+      name = name.replaceAll(_trailingNoise, '').trim();
+    }
+    return name.replaceAll(RegExp(r'^(my|the)\s+', caseSensitive: false), '');
+  }
+
   /// Returns the name to call, or null when [text] isn't a call request.
   String? parseCallIntent(String text) {
     final t = text.trim();

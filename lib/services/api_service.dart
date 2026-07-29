@@ -355,6 +355,51 @@ class ApiService {
     }
   }
 
+  // ---------------- AGENT CALLS ----------------
+  // "Call Allen Lobo and ask him what time he'll be home": the BACKEND
+  // places the call (Twilio) and the AI talks on it; the app polls the
+  // call state and speaks the contact's answer back to the user.
+
+  /// Starts an agent call. Returns the call id, or throws:
+  ///   AgentCallUnavailable — backend has no telephony configured
+  ///                          (caller should fall back to direct dialing).
+  static Future<String> startAgentCall({
+    required String toNumber,
+    required String contactName,
+    required String task,
+    String? lang,
+  }) async {
+    final r = await _client
+        .post(
+          Uri.parse('$baseUrl/agent-call'),
+          headers: _authHeaders,
+          body: jsonEncode({
+            'toNumber': toNumber,
+            'contactName': contactName,
+            'task': task,
+            if (lang != null) 'lang': lang,
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
+    if (r.statusCode == 503) throw AgentCallUnavailable();
+    if (r.statusCode != 202 && r.statusCode != 200) {
+      throw Exception('agent call failed: ${r.statusCode}');
+    }
+    return jsonDecode(r.body)['id'] as String;
+  }
+
+  /// One poll of an agent call. Terminal states:
+  /// completed / no_answer / failed — `result` is the sentence to speak.
+  static Future<({String state, String? result})> agentCallStatus(
+      String id) async {
+    final r = await _client
+        .get(Uri.parse('$baseUrl/agent-call/$id'), headers: _authHeaders)
+        .timeout(const Duration(seconds: 10));
+    if (r.statusCode != 200) throw Exception('status ${r.statusCode}');
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    return (state: j['state'] as String, result: j['result'] as String?);
+  }
+
   // ---------------- PER-USER MEMORY ----------------
   // Backs the "Privacy & memory → WHAT I REMEMBER" screen. All calls
   // require a signed-in session (memory is per-account, not per-device).
@@ -587,3 +632,7 @@ class ApiService {
     if (r.statusCode != 200) throw Exception('Could not clear (${r.statusCode})');
   }
 }
+
+/// The backend has no telephony (Twilio) configured — agent calls are
+/// unavailable; the app falls back to placing a normal direct call.
+class AgentCallUnavailable implements Exception {}

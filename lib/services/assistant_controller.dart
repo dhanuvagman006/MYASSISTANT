@@ -771,6 +771,10 @@ class AssistantController extends ChangeNotifier {
   /// from these contacts instead of going to the AI.
   List<Contact>? _pendingCallOptions;
 
+  /// When the pending call is an AGENT call ("…and ask him when he'll be
+  /// home"), the task rides along so the chosen contact gets it.
+  String? _pendingCallTask;
+
   Future<void> _sayLocal(String text) async {
     state = OrbState.speaking;
     lastReply = text;
@@ -785,7 +789,9 @@ class AssistantController extends ChangeNotifier {
     // A "which one?" follow-up is pending: interpret this as the choice.
     if (_pendingCallOptions != null) {
       final options = _pendingCallOptions!;
+      final task = _pendingCallTask;
       _pendingCallOptions = null;
+      _pendingCallTask = null;
       if (svc.isCancel(question)) {
         lastHeard = question;
         await _sayLocal('Okay, cancelled.');
@@ -794,14 +800,27 @@ class AssistantController extends ChangeNotifier {
       final chosen = svc.chooseFrom(options, question);
       if (chosen != null) {
         lastHeard = question;
-        await _placeCall(chosen);
+        if (task != null) {
+          await _placeAgentCall(chosen, task);
+        } else {
+          await _placeCall(chosen);
+        }
         return true;
       }
       return false; // not a choice — treat as a normal question
     }
 
-    final name = svc.parseCallIntent(question);
+    // AGENT CALL FIRST: "call allen lobo and ask him at what time he will
+    // come home" also matches the plain call pattern, so the richer intent
+    // must win. Hari calls Allen, ASKS HIM ITSELF, and speaks his answer.
+    final agent = svc.parseAgentCallIntent(question);
+    final name = agent?.$1 ?? svc.parseCallIntent(question);
     if (name == null) return false;
+    // The bare-"ask X …" phrasing is only a call when X is a real contact;
+    // otherwise it's a normal question for the AI ("ask google…" etc.).
+    final askOnly = agent != null && !RegExp(r'\b(call|dial|phone|ring)\b',
+            caseSensitive: false)
+        .hasMatch(question);
     lastHeard = question;
     lastReply = null;
     lastDocuments = const [];
@@ -809,6 +828,7 @@ class AssistantController extends ChangeNotifier {
 
     final matches = await svc.findContacts(name);
     if (matches.isEmpty) {
+      if (askOnly) return false; // no such contact → let the AI answer it
       final hasPerm = await svc.ensurePermission();
       await _sayLocal(hasPerm
           ? "I couldn't find $name in your contacts."
@@ -816,7 +836,11 @@ class AssistantController extends ChangeNotifier {
       return true;
     }
     if (matches.length == 1) {
-      await _placeCall(matches.first);
+      if (agent != null) {
+        await _placeAgentCall(matches.first, agent.$2);
+      } else {
+        await _placeCall(matches.first);
+      }
       return true;
     }
 
@@ -826,11 +850,77 @@ class AssistantController extends ChangeNotifier {
         ? '${names[0]} or ${names[1]}'
         : '${names.sublist(0, names.length - 1).join(', ')}, or ${names.last}';
     _pendingCallOptions = matches;
+    _pendingCallTask = agent?.$2;
     await _sayLocal('I found ${matches.length}: $listed. Which one?');
     state = OrbState.idle;
     notifyListeners();
     await ask(); // opens the mic; the reply routes back through here
     return true;
+  }
+
+  /// Hari itself calls [c], speaks with them about [task], then reports
+  /// their answer back to the user. Backend-driven (Twilio): the phone's
+  /// own dialer is never involved, so the loop keeps running while the
+  /// call happens and the answer is spoken the moment it lands.
+  Future<void> _placeAgentCall(Contact c, String task) async {
+    final svc = CallService.instance;
+    final number = svc.bestNumber(c);
+    await _sayLocal(
+        "Alright — I'll call ${c.displayName} and ask. Give me a moment, "
+        "I'll tell you what they say.");
+    state = OrbState.thinking;
+    notifyListeners();
+
+    String id;
+    try {
+      id = await ApiService.startAgentCall(
+        toNumber: number,
+        contactName: c.displayName,
+        task: task,
+        lang: sttLocaleId ?? autoLocaleId,
+      );
+    } on AgentCallUnavailable {
+      // No telephony on this deployment — degrade to a normal call so the
+      // user's request still gets acted on.
+      await _sayLocal(
+          "I can't speak on calls yet on this setup, so I'll connect you "
+          "to ${c.displayName} directly.");
+      await svc.call(number);
+      return;
+    } catch (_) {
+      await _sayLocal(
+          "Sorry, I couldn't start the call to ${c.displayName} just now.");
+      return;
+    }
+
+    // Poll until the call reaches a terminal state (≈3 min ceiling —
+    // dial 30 s + a capped conversation always fits well inside it).
+    const poll = Duration(seconds: 3);
+    final deadline = DateTime.now().add(const Duration(minutes: 3));
+    String? result;
+    var stateName = 'dialing';
+    while (DateTime.now().isBefore(deadline)) {
+      await Future.delayed(poll);
+      try {
+        final s = await ApiService.agentCallStatus(id);
+        stateName = s.state;
+        if (s.state == 'completed' ||
+            s.state == 'no_answer' ||
+            s.state == 'failed') {
+          result = s.result;
+          break;
+        }
+      } catch (_) {/* transient poll error — keep waiting */}
+    }
+
+    result ??= stateName == 'in_progress' || stateName == 'summarizing'
+        ? "The call with ${c.displayName} is taking longer than expected — "
+            "I'll keep the result in our chat."
+        : "I couldn't complete the call to ${c.displayName}.";
+    await _sayLocal(result);
+    // The outcome belongs in the chat history so follow-ups ("call him
+    // back", "what did he say again?") have context.
+    _history.add(ChatMessage(role: 'assistant', content: result));
   }
 
   Future<void> _placeCall(Contact c) async {

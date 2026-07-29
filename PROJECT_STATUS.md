@@ -264,3 +264,20 @@ flutter run --dart-define=BASE_URL=http://<LAPTOP_LAN_IP>:3000 \
   is spoken — "show me my last hospital report" pops the file up hands-free.
 - Chat screen renders the same DocumentCard under assistant bubbles.
 - New: lib/models/user_document.dart, lib/widgets/document_card.dart.
+
+## Update — 29 July 2026: Agent calls (Hari talks to your contacts)
+"Call Allen Lobo and ask him at what time he will come home" → Hari resolves
+the contact ON-DEVICE (privacy: only the chosen number + task go to the
+backend), the backend dials via Twilio and the AI converses with Allen, the
+app polls `/agent-call/:id` and SPEAKS his answer back ("I spoke with Allen…").
+- `call_service.dart` — `parseAgentCallIntent` → (name, task): "call X and
+  ask/tell/inform/let…" plus bare "ask X when/if/what…" phrasings; pronouns
+  rewritten to the contact's name so the call AI has full context.
+- `api_service.dart` — `startAgentCall` / `agentCallStatus`;
+  `AgentCallUnavailable` thrown on backend 503.
+- `assistant_controller.dart` — agent intent checked BEFORE plain dialing;
+  disambiguation ("which one?") carries the task through; bare-"ask" phrasing
+  only becomes a call when the name matches a real contact (else the AI
+  answers normally); 3-min poll then spoken result, saved into chat history
+  for follow-ups; backend 503 → graceful fallback to a normal direct call.
+- Plain "call amma" direct dialing is unchanged.
