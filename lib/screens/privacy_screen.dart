@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/memory_item.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import 'upgrade_screen.dart';
 
 /// Screen 08 — Privacy, Memory & Safety (E1–E3, F1–F3).
 /// Real controls only: no fake memories, no fake toggles.
@@ -23,6 +24,19 @@ class PrivacyScreen extends StatelessWidget {
         Text('Trust is a feature. Everything here is yours to control.',
             style: TextStyle(color: muted)),
         const SizedBox(height: 20),
+        // Plan & usage — the money screen: current tier, allowances,
+        // Razorpay upgrade, family invite/join.
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.workspace_premium_outlined),
+            title: const Text('Plan & usage'),
+            subtitle: const Text('Your allowances, Pro & Family upgrades'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const UpgradeScreen())),
+          ),
+        ),
+        const SizedBox(height: 16),
         const _MemorySection(),
         const SizedBox(height: 16),
         _Section(

@@ -281,3 +281,17 @@ app polls `/agent-call/:id` and SPEAKS his answer back ("I spoke with Allen…")
   answers normally); 3-min poll then spoken result, saved into chat history
   for follow-ups; backend 503 → graceful fallback to a normal direct call.
 - Plain "call amma" direct dialing is unchanged.
+
+## Update — 29 July 2026 (2): Monetization UI + quota handling
+- **`lib/screens/upgrade_screen.dart`** — Plan & usage screen: current tier
+  + days left, live allowances (chat/STT/vision/agent minutes), Pro ₹249 &
+  Family ₹499 cards → Razorpay hosted checkout via url_launcher, "I've
+  paid" refresh (webhook activates server-side), Renew button, Family
+  invite-code dialog (copies to clipboard) and join flow. Entry: Privacy
+  screen top card.
+- **`api_service.dart`** — fetchBilling / startCheckout / familyInvite /
+  familyJoin; `QuotaExceeded` thrown on any 402 (chat, stream, agent call)
+  carrying the server's ready-to-speak upsell line.
+- **`assistant_controller.dart`** — voice loop SPEAKS the upsell on quota
+  (instead of a generic error); an over-quota agent call still CONNECTS
+  the user directly (their need is never blocked, only the AI talking).

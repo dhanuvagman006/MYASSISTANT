@@ -695,10 +695,18 @@ class AssistantController extends ChangeNotifier {
     ChatMessage answer;
     try {
       answer = await ApiService.sendChatStream(window, onDelta: onDelta);
+    } on QuotaExceeded catch (q) {
+      // Plan allowance used up — the server sends a ready-to-speak line.
+      answer = ChatMessage(role: 'assistant', content: q.message);
+      lastReply = answer.content;
+      pending = answer.content;
     } catch (_) {
       // Streaming unavailable → classic one-shot request.
       try {
         answer = await ApiService.sendChat(window);
+        lastReply = answer.content;
+      } on QuotaExceeded catch (q) {
+        answer = ChatMessage(role: 'assistant', content: q.message);
         lastReply = answer.content;
       } catch (_) {
         answer = const ChatMessage(
@@ -885,6 +893,12 @@ class AssistantController extends ChangeNotifier {
       await _sayLocal(
           "I can't speak on calls yet on this setup, so I'll connect you "
           "to ${c.displayName} directly.");
+      await svc.call(number);
+      return;
+    } on QuotaExceeded catch (q) {
+      // Plan limit — explain, then still connect them directly so the
+      // user's actual need (reaching Allen) is never blocked.
+      await _sayLocal("${q.message} I'll connect you directly instead.");
       await svc.call(number);
       return;
     } catch (_) {

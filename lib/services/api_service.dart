@@ -153,6 +153,7 @@ class ApiService {
   /// Returns the assistant reply with any live-information sources (A5).
   /// Style preferences (A4) ride as headers — zero extra round-trips.
   static Future<ChatMessage> sendChat(List<ChatMessage> history) async {
+    // (402 → QuotaExceeded is raised below, after the response arrives)
     final prefs = StylePrefs.instance;
     final r = await _client
         .post(
@@ -172,6 +173,7 @@ class ApiService {
     if (r.statusCode == 401) {
       throw Exception('Sign-in required — check APP_API_KEY or Google sign-in.');
     }
+    checkQuota(r.statusCode, r.body); // 402 → QuotaExceeded (upsell)
     if (r.statusCode != 200) {
       throw Exception('Server error ${r.statusCode}');
     }
@@ -303,6 +305,10 @@ class ApiService {
 
     // 20 s to first byte; 30 s max gap between chunks mid-stream.
     final resp = await _client.send(req).timeout(const Duration(seconds: 20));
+    if (resp.statusCode == 402) {
+      final body = await resp.stream.bytesToString();
+      checkQuota(402, body); // always throws QuotaExceeded
+    }
     if (resp.statusCode != 200) throw Exception('stream ${resp.statusCode}');
 
     final full = StringBuffer();
@@ -382,6 +388,7 @@ class ApiService {
         )
         .timeout(const Duration(seconds: 20));
     if (r.statusCode == 503) throw AgentCallUnavailable();
+    checkQuota(r.statusCode, r.body); // 402 → QuotaExceeded (upsell)
     if (r.statusCode != 202 && r.statusCode != 200) {
       throw Exception('agent call failed: ${r.statusCode}');
     }
@@ -398,6 +405,64 @@ class ApiService {
     if (r.statusCode != 200) throw Exception('status ${r.statusCode}');
     final j = jsonDecode(r.body) as Map<String, dynamic>;
     return (state: j['state'] as String, result: j['result'] as String?);
+  }
+
+  // ---------------- BILLING ----------------
+  // Plans, usage, Razorpay checkout (hosted payment page opened in the
+  // browser; the backend webhook activates the plan), family accounts.
+
+  static Future<Map<String, dynamic>> fetchBilling() async {
+    final r = await _client
+        .get(Uri.parse('$baseUrl/billing'), headers: _authHeaders)
+        .timeout(const Duration(seconds: 15));
+    if (r.statusCode != 200) throw Exception('billing ${r.statusCode}');
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  /// Starts a Pro/Family checkout → the Razorpay page URL to open.
+  static Future<String> startCheckout(String plan) async {
+    final r = await _client
+        .post(Uri.parse('$baseUrl/billing/checkout'),
+            headers: _authHeaders, body: jsonEncode({'plan': plan}))
+        .timeout(const Duration(seconds: 20));
+    if (r.statusCode != 200) {
+      throw Exception(
+          (jsonDecode(r.body)['error'] as String?) ?? 'checkout failed');
+    }
+    return jsonDecode(r.body)['url'] as String;
+  }
+
+  static Future<String> familyInvite() async {
+    final r = await _client
+        .post(Uri.parse('$baseUrl/billing/family/invite'),
+            headers: _authHeaders)
+        .timeout(const Duration(seconds: 15));
+    if (r.statusCode != 200) {
+      throw Exception(
+          (jsonDecode(r.body)['error'] as String?) ?? 'invite failed');
+    }
+    return jsonDecode(r.body)['code'] as String;
+  }
+
+  static Future<void> familyJoin(String code) async {
+    final r = await _client
+        .post(Uri.parse('$baseUrl/billing/family/join'),
+            headers: _authHeaders, body: jsonEncode({'code': code}))
+        .timeout(const Duration(seconds: 15));
+    if (r.statusCode != 200) {
+      throw Exception(
+          (jsonDecode(r.body)['error'] as String?) ?? 'could not join');
+    }
+  }
+
+  /// Throws [QuotaExceeded] when the backend answers 402 (plan limit).
+  static void checkQuota(int statusCode, String body) {
+    if (statusCode != 402) return;
+    String msg = 'You have reached your plan limit.';
+    try {
+      msg = (jsonDecode(body)['error'] as String?) ?? msg;
+    } catch (_) {}
+    throw QuotaExceeded(msg);
   }
 
   // ---------------- PER-USER MEMORY ----------------
@@ -636,3 +701,12 @@ class ApiService {
 /// The backend has no telephony (Plivo) configured — agent calls are
 /// unavailable; the app falls back to placing a normal direct call.
 class AgentCallUnavailable implements Exception {}
+
+/// The backend answered 402: the current plan's allowance is used up.
+/// [message] is a ready-to-speak upsell line from the server.
+class QuotaExceeded implements Exception {
+  final String message;
+  QuotaExceeded(this.message);
+  @override
+  String toString() => message;
+}
