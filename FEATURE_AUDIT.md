@@ -19,8 +19,8 @@ which requires a real `GEMINI_API_KEY`)._
 | A5 | Live information | ✅ | `tools/news.js`, `weather.js`, `currency.js`, `units.js`; sources returned on `/chat` |
 | B1 | Photo questions | ✅ | `POST /vision` + camera/share flow in app |
 | B2 | Document reading | ✅ | `POST /docs` → Gemini extraction; FTS5 recall wired into chat |
-| B3 | Scan to text (OCR) | 🟡 | Achievable through vision, but no dedicated "scan → editable text → copy/save/share" flow as specified |
-| B4 | Screenshot helper | ❌ | No screenshot-intent flow (e.g. poster → calendar entry for approval) |
+| B3 | Scan to text (OCR) | ✅ | Dedicated OCR mode: Documents screen "Scan to text" button → `/vision mode=ocr` → text sheet with Copy-all (`_showOcrSheet`, documents_screen.dart) |
+| B4 | Screenshot helper | 🟡 | Implemented: images run in `mode=screenshot`; detected event posters return a `VisionAction` → approval card → saved on tap (`_approveAction`). Caveat: it saves a **reminder + notification**, not a Google Calendar entry as the scope wording says — either wire to `POST /google/event` or agree the reminder is acceptable |
 | C1 | Reminders & to-dos | ✅📱 | `reminders/` routes + `notification_service.dart`; verify notifications with app closed on device |
 | C2 | Morning briefing | ✅ | `RE.briefing` intent (calendar + weather + reminders + news); feature flag currently off in `remoteConfig.js` |
 | C3 | Nearby places | ✅ | `/places` + `/places/photo`, `RE.nearby` intent |
@@ -37,7 +37,7 @@ which requires a real `GEMINI_API_KEY`)._
 | F2 | Privacy dashboard | ✅ | `privacy_screen.dart` + `GET /privacy/export` (verified live) |
 | F3 | Safety rules | 🟡 | One line in the system prompt ("Decline harmful requests politely") + provider defaults; no care-notes layer for sensitive topics as specified |
 
-**Phase 1 score: 19 ✅ · 3 🟡 · 1 ❌ (B4)** — several ✅ items still need real-device testing (📱).
+**Phase 1 score: 21 ✅ · 3 🟡 · 0 ❌** — several ✅ items still need real-device testing (📱).
 
 ## Phase 2 — Advanced Capabilities (21 features)
 
@@ -45,7 +45,7 @@ which requires a real `GEMINI_API_KEY`)._
 |-----|---------|--------|------------------|
 | G1 | Calls on user's behalf | 🟡📱 | `agentcall/` (Plivo engine, AI intro). Needs Plivo credentials, real-call testing, local-language call testing |
 | G2 | Call preview & rules | ✅ | `POST /agentcall/preview`, `/agentcall/settings` (limits, hours) |
-| G3 | Call results & follow-up | 🟡 | Transcript/summary stored; automatic follow-up (calendar/reminder) not confirmed end-to-end |
+| G3 | Call results & follow-up | 🟡 | Transcript/summary stored and spoken back (result saved into chat history for follow-up questions); **automatic** follow-up actions (calendar entry / reminder from the outcome) not wired |
 | H1 | Automatic sending rules | ❌ | Not built (no rules engine, no log, no master switch) |
 | H2 | Cross-app routines | ❌ | Not built |
 | H3 | Triggers & schedules | 🟡 | Time-based reminders only; no location/event triggers |
@@ -76,3 +76,16 @@ which requires a real `GEMINI_API_KEY`)._
 ## Bottom line
 - Phase 1 is substantially delivered (~21/24), pending device QA and the B3/B4/F3 gaps.
 - Phase 2 is early: AI calling and food ordering have real foundations; automation, smart home, social/WhatsApp, finance, commerce, and offline are unstarted.
+
+## Verification run — 30 July 2026 (second pass)
+- Backend `npm test` executed in a clean container: **all 4 suites pass** — smoke,
+  agent-call (full Plivo webhook lifecycle incl. V2 signature checks), billing
+  (metering, 402s, webhook signatures, family pooling), features (units, privacy
+  export/delete, agent-call rules, Google endpoint honesty). Auth ON, throwaway DB,
+  no AI keys needed.
+- Fix pushed to `MYASSISTANT_BACKEND`: the smoke test now forces
+  `AUTH_DISABLED=false` in its spawned server — previously a local dev `.env` with
+  `AUTH_DISABLED=true` silently broke the whole suite ("ASSERT FAILED: memory
+  seeding") because the Bearer token was ignored.
+- B3/B4 rows above corrected after tracing the app code: both flows exist
+  end-to-end; B4's only gap vs. the scope wording is reminder-vs-calendar-entry.
