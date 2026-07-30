@@ -66,6 +66,8 @@ dependencies:
   google_sign_in: ^6.2.1
   sign_in_with_apple: ^6.1.2
   flutter_secure_storage: ^9.2.2   # session token lives in Keystore/Keychain
+  local_auth: ^2.3.0               # F1 — fingerprint/face app lock (PIN fallback is ours)
+  share_plus: ^10.1.2              # F2 export sharing + J3 share-anywhere drafts
 
 dev_dependencies:
   flutter_test:

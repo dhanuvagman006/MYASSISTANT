@@ -395,6 +395,58 @@ class ApiService {
     return jsonDecode(r.body)['id'] as String;
   }
 
+  /// G2 — exactly what Hari will say when the contact answers, plus a
+  /// server verdict on the user's own call rules (hours, daily limit,
+  /// master switch). Nothing is dialed. 403 rule blocks on the real
+  /// POST carry a ready-to-speak `say` line.
+  static Future<({String opening, bool allowed, String? reason})>
+      agentCallPreview({
+    required String contactName,
+    required String task,
+    String? lang,
+  }) async {
+    final r = await _client
+        .post(
+          Uri.parse('$baseUrl/agent-call/preview'),
+          headers: _authHeaders,
+          body: jsonEncode({
+            'contactName': contactName,
+            'task': task,
+            if (lang != null) 'lang': lang,
+          }),
+        )
+        .timeout(const Duration(seconds: 12));
+    if (r.statusCode != 200) throw Exception('preview ${r.statusCode}');
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    return (
+      opening: j['opening'] as String? ?? '',
+      allowed: j['allowed'] as bool? ?? true,
+      reason: j['reason'] as String?,
+    );
+  }
+
+  // ---------------- PRIVACY (F2) ----------------
+
+  /// Everything the server holds on this account, as pretty JSON —
+  /// the user saves or shares the file from the Privacy screen.
+  static Future<String> exportMyData() async {
+    final r = await _client
+        .get(Uri.parse('$baseUrl/privacy/export'), headers: _authHeaders)
+        .timeout(const Duration(seconds: 20));
+    if (r.statusCode != 200) throw Exception('export failed ${r.statusCode}');
+    return const JsonEncoder.withIndent('  ')
+        .convert(jsonDecode(r.body));
+  }
+
+  /// Permanent, irreversible account deletion (server erases every row
+  /// and every stored file). Caller signs the user out afterwards.
+  static Future<void> deleteMyAccount() async {
+    final r = await _client
+        .delete(Uri.parse('$baseUrl/privacy/account'), headers: _authHeaders)
+        .timeout(const Duration(seconds: 20));
+    if (r.statusCode != 200) throw Exception('delete failed ${r.statusCode}');
+  }
+
   /// One poll of an agent call. Terminal states:
   /// completed / no_answer / failed — `result` is the sentence to speak.
   static Future<({String state, String? result})> agentCallStatus(

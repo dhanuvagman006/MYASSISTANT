@@ -1,7 +1,13 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/memory_item.dart';
 import '../services/api_service.dart';
+import '../services/app_lock.dart';
+import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
 import 'upgrade_screen.dart';
 
@@ -55,44 +61,238 @@ class PrivacyScreen extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        _Section(
-          title: 'YOUR DATA',
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+        const _AppLockSection(),
+        const SizedBox(height: 16),
+        const _DataSection(),
+      ],
+    );
+  }
+}
+
+/// F1 — fingerprint / PIN lock toggle. Fully on-device: enabling asks
+/// for a 4-digit fallback PIN; disabling requires unlocking first.
+class _AppLockSection extends StatefulWidget {
+  const _AppLockSection();
+
+  @override
+  State<_AppLockSection> createState() => _AppLockSectionState();
+}
+
+class _AppLockSectionState extends State<_AppLockSection> {
+  @override
+  void initState() {
+    super.initState();
+    AppLock.instance.addListener(_changed);
+  }
+
+  @override
+  void dispose() {
+    AppLock.instance.removeListener(_changed);
+    super.dispose();
+  }
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _toggle(bool on) async {
+    final lock = AppLock.instance;
+    if (on) {
+      final pin = await _askPin(context,
+          title: 'Set a 4-digit PIN',
+          subtitle: 'Used when fingerprint or face is unavailable.');
+      if (pin == null) return;
+      await lock.enable(pin);
+    } else {
+      // Verify before disabling: biometric first, PIN as fallback.
+      var ok = await lock.tryBiometric();
+      if (!ok) {
+        final pin = await _askPin(context, title: 'Enter your PIN to turn off');
+        if (pin == null) return;
+        ok = await lock.tryPin(pin);
+      }
+      if (!ok) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("That didn't match — lock stays on.")));
+        }
+        return;
+      }
+      await lock.disable();
+    }
+  }
+
+  static Future<String?> _askPin(BuildContext context,
+      {required String title, String? subtitle}) {
+    final ctrl = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (subtitle != null) Text(subtitle),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              obscureText: true,
+              maxLength: 4,
+              decoration: const InputDecoration(counterText: ''),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              final v = ctrl.text.trim();
+              Navigator.pop(ctx, v.length == 4 ? v : null);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _Section(
+      title: 'APP LOCK',
+      child: SwitchListTile(
+        secondary: const Icon(Icons.fingerprint_rounded),
+        title: const Text('Fingerprint or PIN lock'),
+        subtitle: const Text('Asks every time the app is opened'),
+        value: AppLock.instance.enabled,
+        onChanged: _toggle,
+      ),
+    );
+  }
+}
+
+/// F2 — LIVE export + permanent deletion. One screen deep, no dark
+/// patterns: export shares a single JSON file; erase asks for the word
+/// DELETE, calls the server once, then signs out.
+class _DataSection extends StatefulWidget {
+  const _DataSection();
+
+  @override
+  State<_DataSection> createState() => _DataSectionState();
+}
+
+class _DataSectionState extends State<_DataSection> {
+  bool _busy = false;
+
+  Future<void> _export() async {
+    setState(() => _busy = true);
+    try {
+      final json = await ApiService.exportMyData();
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/myassistant-data.json');
+      await file.writeAsString(json);
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'application/json')],
+        subject: 'My MyAssistant data export',
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text("Couldn't export right now — try again shortly.")));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _erase() async {
+    final ctrl = TextEditingController();
+    final sure = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Erase everything?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+                'Your account, memories, reminders, documents and call '
+                'history will be permanently deleted. This cannot be undone.\n\n'
+                'Type DELETE to confirm:'),
+            TextField(controller: ctrl, autofocus: true),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Keep my account')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () =>
+                Navigator.pop(ctx, ctrl.text.trim().toUpperCase() == 'DELETE'),
+            child: const Text('Erase forever'),
+          ),
+        ],
+      ),
+    );
+    if (sure != true) return;
+    setState(() => _busy = true);
+    try {
+      await ApiService.deleteMyAccount();
+      await AuthService.instance.signOut(); // AuthGate flips to AuthScreen
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content:
+                Text("Deletion didn't complete — please try again.")));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final muted =
+        Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.60);
+    return _Section(
+      title: 'YOUR DATA',
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Download a copy of everything Hari holds, or delete it all '
+              'permanently — one screen deep, no dark patterns.',
+              style: TextStyle(color: muted, height: 1.5),
+            ),
+            const SizedBox(height: 14),
+            Row(
               children: [
-                Text(
-                  'Full export and permanent deletion will live here — one '
-                  'screen deep, no dark patterns.',
-                  style: TextStyle(color: muted, height: 1.5),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _busy ? null : _export,
+                    child: const Text('Export my data'),
+                  ),
                 ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: null,
-                        child: const Text('Export my data'),
-                      ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _busy ? null : _erase,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.danger,
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: null,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.danger,
-                        ),
-                        child: const Text('Erase everything'),
-                      ),
-                    ),
-                  ],
+                    child: const Text('Erase everything'),
+                  ),
                 ),
               ],
             ),
-          ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

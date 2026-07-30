@@ -61,7 +61,12 @@ class AuthService extends ChangeNotifier {
     forceCodeForRefreshToken: true,
     scopes: const [
       'https://www.googleapis.com/auth/gmail.readonly',
+      // D2 — reply DRAFTS only (compose never grants sending on our path;
+      // the user reviews and taps Send inside Gmail themselves).
+      'https://www.googleapis.com/auth/gmail.compose',
       'https://www.googleapis.com/auth/calendar.readonly',
+      // D3 — voice/preview event creation and edits.
+      'https://www.googleapis.com/auth/calendar.events',
     ],
   );
 

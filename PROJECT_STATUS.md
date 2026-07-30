@@ -295,3 +295,24 @@ app polls `/agent-call/:id` and SPEAKS his answer back ("I spoke with Allen…")
 - **`assistant_controller.dart`** — voice loop SPEAKS the upsell on quota
   (instead of a generic error); an over-quota agent call still CONNECTS
   the user directly (their need is never blocked, only the AI talking).
+
+## Update — 30 July 2026: Feature-list audit sweep (F1, F2, D2/D3 scopes, G2)
+- **F1 — App lock**: `services/app_lock.dart` (biometric via local_auth +
+  4-digit PIN fallback in flutter_secure_storage, on-device only) +
+  `screens/lock_screen.dart` (auto biometric prompt, PIN pad). Gate wired in
+  main.dart's AuthGate; re-locks when the app is backgrounded. Toggle lives
+  in the Privacy screen (verify-before-disable).
+  ⚠ Local setup: MainActivity must extend FlutterFragmentActivity and the
+  manifest needs USE_BIOMETRIC (android/ is generated locally).
+- **F2 — Your data, live**: Privacy screen Export shares a real
+  `myassistant-data.json` (GET /privacy/export via share sheet); Erase asks
+  the user to type DELETE, calls DELETE /privacy/account, signs out.
+- **D2/D3 scopes**: linkGoogleData now also requests gmail.compose (drafts
+  only — Hari never sends) and calendar.events. Existing linked users must
+  reconnect once to grant them.
+- **G2 — Call preview & approval**: before any agent call, the controller
+  fetches `/agent-call/preview`, SPEAKS the exact opening line, and waits
+  for a spoken yes — anything ambiguous cancels. Server-side rules
+  (hours/daily cap/master switch) come back as a spoken block. Old-backend
+  fallback keeps the previous direct flow.
+- deps: + local_auth, + share_plus.

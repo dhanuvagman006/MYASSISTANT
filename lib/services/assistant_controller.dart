@@ -779,6 +779,10 @@ class AssistantController extends ChangeNotifier {
   /// from these contacts instead of going to the AI.
   List<Contact>? _pendingCallOptions;
 
+  /// G2 — a previewed agent call waiting for a spoken yes/no. Hari has
+  /// already read out exactly what it will say; only a "yes" dials.
+  (Contact, String)? _pendingAgentConfirm;
+
   /// When the pending call is an AGENT call ("…and ask him when he'll be
   /// home"), the task rides along so the chosen contact gets it.
   String? _pendingCallTask;
@@ -790,9 +794,28 @@ class AssistantController extends ChangeNotifier {
     await _voice.speak(text);
   }
 
+  static final _yesRe = RegExp(
+      r"^\s*(yes|yeah|yep|ya|sure|ok(ay)?|go ahead|do it|call|haan|ho|houdu|sari)\b",
+      caseSensitive: false);
+
   /// Returns true when [question] was a call request (handled here).
   Future<bool> _handleCallIntent(String question) async {
     final svc = CallService.instance;
+
+    // G2 — an agent-call preview is awaiting approval: this utterance IS
+    // the verdict. Anything that isn't a clear yes cancels (safe default —
+    // Hari never phones a contact on an ambiguous mumble).
+    if (_pendingAgentConfirm != null) {
+      final (contact, task) = _pendingAgentConfirm!;
+      _pendingAgentConfirm = null;
+      lastHeard = question;
+      if (_yesRe.hasMatch(question)) {
+        await _placeAgentCall(contact, task);
+      } else {
+        await _sayLocal("Okay, I won't call.");
+      }
+      return true;
+    }
 
     // A "which one?" follow-up is pending: interpret this as the choice.
     if (_pendingCallOptions != null) {
@@ -809,7 +832,7 @@ class AssistantController extends ChangeNotifier {
       if (chosen != null) {
         lastHeard = question;
         if (task != null) {
-          await _placeAgentCall(chosen, task);
+          await _previewAgentCall(chosen, task);
         } else {
           await _placeCall(chosen);
         }
@@ -845,7 +868,7 @@ class AssistantController extends ChangeNotifier {
     }
     if (matches.length == 1) {
       if (agent != null) {
-        await _placeAgentCall(matches.first, agent.$2);
+        await _previewAgentCall(matches.first, agent.$2);
       } else {
         await _placeCall(matches.first);
       }
@@ -864,6 +887,38 @@ class AssistantController extends ChangeNotifier {
     notifyListeners();
     await ask(); // opens the mic; the reply routes back through here
     return true;
+  }
+
+  /// G2 — CALL PREVIEW & APPROVAL: fetch the exact opening line from the
+  /// backend, speak it, and wait for a yes/no. The user's own call rules
+  /// (daily limit, allowed hours, master switch) are checked server-side
+  /// in the same request; a block is spoken instead of dialing. If the
+  /// preview endpoint is unreachable we fall back to the old direct flow
+  /// rather than leaving the request hanging.
+  Future<void> _previewAgentCall(Contact c, String task) async {
+    state = OrbState.thinking;
+    notifyListeners();
+    try {
+      final p = await ApiService.agentCallPreview(
+        contactName: c.displayName,
+        task: task,
+        lang: sttLocaleId ?? autoLocaleId,
+      );
+      if (!p.allowed) {
+        await _sayLocal(p.reason ?? "Your call rules don't allow this right now.");
+        return;
+      }
+      _pendingAgentConfirm = (c, task);
+      await _sayLocal(
+          'Here\'s what I\'ll say to ${c.displayName}: "${p.opening}" '
+          'Shall I make the call?');
+      state = OrbState.idle;
+      notifyListeners();
+      await ask(); // opens the mic; the yes/no routes back through here
+    } catch (_) {
+      // Preview unavailable (old backend / network) — proceed the old way.
+      await _placeAgentCall(c, task);
+    }
   }
 
   /// Hari itself calls [c], speaks with them about [task], then reports

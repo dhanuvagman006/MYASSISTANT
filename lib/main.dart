@@ -9,11 +9,13 @@ import 'screens/daily_screen.dart';
 import 'screens/documents_screen.dart';
 import 'screens/inbox_screen.dart';
 import 'screens/interview_screen.dart';
+import 'screens/lock_screen.dart';
 import 'screens/privacy_screen.dart';
 import 'screens/smart_home_screen.dart';
 import 'screens/voice_home_screen.dart';
 import 'services/api_service.dart';
 import 'services/app_strings.dart';
+import 'services/app_lock.dart';
 import 'services/auth_service.dart';
 import 'services/style_prefs.dart';
 import 'widgets/style_settings_sheet.dart';
@@ -25,6 +27,7 @@ void main() {
   // Style + language prefs load in parallel with the first frame; every
   // later read is a plain field access (no disk on hot paths).
   StylePrefs.instance.load();
+  AppLock.instance.init(); // F1 — resolves before AuthGate finishes restoring
   runApp(const MyAssistantApp());
 }
 
@@ -53,12 +56,14 @@ class AuthGate extends StatefulWidget {
   State<AuthGate> createState() => _AuthGateState();
 }
 
-class _AuthGateState extends State<AuthGate> {
+class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   bool _restoring = true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this); // F1 — relock on background
+    AppLock.instance.addListener(_onAuthChanged);
     AuthService.instance.addListener(_onAuthChanged);
     AuthService.instance.init().whenComplete(() {
       if (mounted) setState(() => _restoring = false);
@@ -68,7 +73,15 @@ class _AuthGateState extends State<AuthGate> {
   @override
   void dispose() {
     AuthService.instance.removeListener(_onAuthChanged);
+    AppLock.instance.removeListener(_onAuthChanged);
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Ask again whenever the app leaves the foreground (F1).
+    if (state == AppLifecycleState.paused) AppLock.instance.relock();
   }
 
   void _onAuthChanged() {
@@ -84,6 +97,8 @@ class _AuthGateState extends State<AuthGate> {
     }
     final auth = AuthService.instance;
     if (!auth.isSignedIn) return const AuthScreen();
+    // F1 — optional fingerprint/PIN wall in front of everything.
+    if (AppLock.instance.shouldLock) return const LockScreen();
     // Brand-new account → one-time interview so Hari learns the basics
     // (skippable), THEN the home shell.
     if (auth.lastSignInWasNew) {
