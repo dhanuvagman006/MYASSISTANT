@@ -21,15 +21,33 @@ class _VoiceHomeScreenState extends State<VoiceHomeScreen>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   final _assistant = AssistantController.instance;
 
+  // NOTE: no `..repeat()` here — a forever-running controller made the
+  // orb repaint at 60 fps even while idle, flooding the SurfaceView
+  // buffer queue (BLASTBufferQueue "Can't acquire next buffer" log spam)
+  // and burning battery. The pulse now runs only while the orb is
+  // actually listening/speaking; see _syncPulse().
   late final AnimationController _pulse = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 900),
-  )..repeat(reverse: true);
+  );
+
+  /// Run the breathing animation only when the orb visually needs it.
+  void _syncPulse() {
+    final animate = _assistant.state == OrbState.listening ||
+        _assistant.state == OrbState.speaking;
+    if (animate && !_pulse.isAnimating) {
+      _pulse.repeat(reverse: true);
+    } else if (!animate && _pulse.isAnimating) {
+      _pulse.stop();
+      _pulse.value = 0;
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _assistant.addListener(_syncPulse);
     // Greet AFTER init so the mic and memory are ready — Hari says hello
     // by name (and asks a get-to-know-you question on early sessions).
     _assistant.init().then((_) => _assistant.greetOnLaunch());
@@ -39,14 +57,18 @@ class _VoiceHomeScreenState extends State<VoiceHomeScreen>
   void didChangeAppLifecycleState(AppLifecycleState s) {
     if (s == AppLifecycleState.paused) {
       _assistant.onBackground();
+      // Never render animation frames while the screen isn't visible.
+      _pulse.stop();
     } else if (s == AppLifecycleState.resumed) {
       _assistant.onForeground();
+      _syncPulse();
     }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _assistant.removeListener(_syncPulse);
     _pulse.dispose();
     super.dispose();
   }
@@ -120,11 +142,16 @@ class _VoiceHomeScreenState extends State<VoiceHomeScreen>
                 ),
                 Expanded(
                   child: Center(
-                    child: _BloomOrb(
-                      state: a.state,
-                      pulse: _pulse,
-                      level: a.state == OrbState.listening ? a.micLevel : 0.0,
-                      onTap: a.tapOrb,
+                    // RepaintBoundary keeps the 60fps pulse repaint local
+                    // to the orb instead of redrawing the whole screen.
+                    child: RepaintBoundary(
+                      child: _BloomOrb(
+                        state: a.state,
+                        pulse: _pulse,
+                        level:
+                            a.state == OrbState.listening ? a.micLevel : 0.0,
+                        onTap: a.tapOrb,
+                      ),
                     ),
                   ),
                 ),
