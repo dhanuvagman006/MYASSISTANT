@@ -47,8 +47,10 @@ class AuthService extends ChangeNotifier {
 
   /// Must match the backend's GOOGLE_WEB_CLIENT_ID.
   /// Pass with: --dart-define=GOOGLE_WEB_CLIENT_ID=xxx.apps.googleusercontent.com
-  static const _googleWebClientId = String.fromEnvironment('GOOGLE_WEB_CLIENT_ID');
-
+  static const _googleWebClientId = String.fromEnvironment(
+  'GOOGLE_WEB_CLIENT_ID',
+  defaultValue: '75982680339-lhs2k8cs72ml5eh2crte0e487c7fla9u.apps.googleusercontent.com',
+  );
   final _google = GoogleSignIn(
     serverClientId: _googleWebClientId.isEmpty ? null : _googleWebClientId,
   );

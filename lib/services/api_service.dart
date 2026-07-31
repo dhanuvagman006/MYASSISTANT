@@ -42,10 +42,10 @@ class ApiService {
   /// Point this at your backend.
   /// Android emulator against a local server: http://10.0.2.2:3000
   /// iOS simulator against a local server:    http://localhost:3000
-  static const String baseUrl = String.fromEnvironment(
-    'BASE_URL',
-    defaultValue: 'https://api.myassistant.example.com',
-  );
+ static const String baseUrl = String.fromEnvironment(
+  'BASE_URL',
+  defaultValue: 'https://api.hariassistant.tech',
+);
 
   /// Shared secret matching the backend's APP_API_KEY (dev/X-App-Key mode).
   /// Pass with: --dart-define=APP_API_KEY=...
