@@ -28,3 +28,8 @@ ios/Runner/GoogleService-Info.plist
 
 # Secrets
 .env
+
+# Release signing — never commit
+android/key.properties
+android/app/*.jks
+android/app/*.keystore
