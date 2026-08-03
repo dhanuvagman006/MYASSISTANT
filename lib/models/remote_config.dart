@@ -7,6 +7,12 @@ class RemoteConfig {
   final String? announcement;
   final Map<String, bool> features;
 
+  /// Self-hosted update channel (sideload builds): direct APK download URL
+  /// + its sha256, published via the backend's POST /admin/apk. Null when
+  /// no build has been uploaded — the app then falls back to store flows.
+  final String? apkUrl;
+  final String? apkSha256;
+
   const RemoteConfig({
     this.latestVersionCode = 1,
     this.latestVersionName = '0.1.0',
@@ -14,6 +20,8 @@ class RemoteConfig {
     this.changelog = const [],
     this.announcement,
     this.features = const {},
+    this.apkUrl,
+    this.apkSha256,
   });
 
   factory RemoteConfig.fromJson(Map<String, dynamic> j) => RemoteConfig(
@@ -23,6 +31,8 @@ class RemoteConfig {
         changelog: List<String>.from(j['changelog'] ?? const []),
         announcement: j['announcement'],
         features: Map<String, bool>.from(j['features'] ?? const {}),
+        apkUrl: j['apkUrl'],
+        apkSha256: j['apkSha256'],
       );
 
   bool isEnabled(String feature) => features[feature] == true;
