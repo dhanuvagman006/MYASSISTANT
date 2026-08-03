@@ -316,3 +316,34 @@ app polls `/agent-call/:id` and SPEAKS his answer back ("I spoke with Allen…")
   (hours/daily cap/master switch) come back as a spoken block. Old-backend
   fallback keeps the previous direct flow.
 - deps: + local_auth, + share_plus.
+
+## Update — 3 Aug 2026: Fingerprint fix, release signing, self-hosted OTA updates
+- **F1 fingerprint fixed** (button did nothing): the documented local setup was
+  never applied — `MainActivity` now extends **FlutterFragmentActivity** (was
+  FlutterActivity; local_auth threw no_fragment_activity, silently swallowed)
+  and the manifest gained `USE_BIOMETRIC`. android/ is now IN the repo.
+- **Release signing**: `build.gradle.kts` reads `android/key.properties`
+  (git-ignored) → signs with the owner's `hari-release.jks`; falls back to
+  debug signing when the file is absent. ⚠ Keystore + password are backed up
+  by the owner; ALL client builds must use this key or updates break.
+  ⚠ The release key's SHA-1 must be registered on the Google OAuth Android
+  client or sign-in fails in release builds (pending verification).
+- **Self-hosted OTA update channel** (sideload/client-testing phase):
+  `ota_update ^7.0.0`; `UpdateService.launch()` tries Play In-App Update
+  first (store installs unaffected), else downloads `config.apkUrl`
+  (sha256-verified) and fires the system installer. Update sheet shows
+  download progress + retry. Manifest: `REQUEST_INSTALL_PACKAGES`
+  (⚠ REMOVE for Play Store builds — store policy bans self-update).
+  `RemoteConfig` gained `apkUrl`/`apkSha256` from GET /config.
+- **Distribution decided**: signed release APK shared directly with the client
+  (Drive link); Firebase App Distribution / Play internal testing noted as
+  next steps. Release ritual: bump `pubspec.yaml` version (+N = versionCode),
+  `flutter build apk --release`, then `curl -F apk=@… /admin/apk` (backend doc).
+
+## NEXT (planned for tomorrow, 4 Aug)
+- Verify release-build Google sign-in (SHA-1 registration) on a real device.
+- Full OTA loop test: install build 1 → publish build 2 → in-app update.
+- Swiggy: submit Builders Club application (mcp.swiggy.com/builders) — demo
+  video + use-case text; client whitelisting is the ONLY remaining blocker.
+- Confirm owner rotated ALL keys leaked in chat on 3 Aug (GitHub token,
+  Gemini, Groq, Google client secret — JWT/admin/app/metrics already rotated).
