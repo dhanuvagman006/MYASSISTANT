@@ -13,6 +13,7 @@ import 'api_service.dart';
 import 'auth_service.dart';
 import 'call_service.dart';
 import 'notification_service.dart';
+import 'phone_state_guard.dart';
 import 'region_language.dart';
 import 'voice_service.dart';
 
@@ -99,6 +100,15 @@ class AssistantController extends ChangeNotifier {
     await _initPorcupine();
     if (micReady && wakeEnabled) await _startWake();
     notifyListeners();
+
+    // INCOMING-CALL GUARD: the instant the phone rings (or any call
+    // connects), Hari shuts up and lets go of the mic — talking over a
+    // ringing phone is the single most annoying thing an assistant can
+    // do. Resumes wake listening after the call ends.
+    PhoneStateGuard.instance.start(
+      onCallActive: _onPhoneCallActive,
+      onCallEnded: _onPhoneCallEnded,
+    );
 
     // Regional language from location (non-blocking; Auto mode only).
     _detectRegionalLanguage();
@@ -1000,6 +1010,38 @@ class AssistantController extends ChangeNotifier {
     if (!ok) {
       await _sayLocal("Sorry, I couldn't start the call.");
     }
+  }
+
+  /// A phone call is ringing or connected — stop speaking IMMEDIATELY,
+  /// drop every queued sentence, release the mic, and pause wake
+  /// listening so speech recognition can't grab audio focus from the
+  /// call. Any reply still streaming keeps filling the transcript card
+  /// silently; nothing more is spoken aloud.
+  Future<void> _onPhoneCallActive() async {
+    _speechAborted = true; // kills the whole queued sentence chain
+    try {
+      await _voice.stopSpeaking(); // cut the CURRENT sentence mid-word
+    } catch (_) {}
+    switch (state) {
+      case OrbState.listening:
+        try {
+          await _voice.cancelCapture();
+        } catch (_) {}
+      case OrbState.speaking:
+      case OrbState.thinking:
+      case OrbState.idle:
+        break;
+    }
+    await _pauseWake();
+    if (state != OrbState.idle) {
+      state = OrbState.idle;
+    }
+    notifyListeners();
+  }
+
+  /// Call finished — go back to normal wake-word listening.
+  Future<void> _onPhoneCallEnded() async {
+    if (state == OrbState.idle) await _startWake();
   }
 
   /// Orb tap behaviour, mirroring the design doc.

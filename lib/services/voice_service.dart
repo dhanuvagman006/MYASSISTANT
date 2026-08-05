@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_tts/flutter_tts.dart';
 
+import 'phone_state_guard.dart';
 import 'style_prefs.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
@@ -495,6 +496,10 @@ class VoiceService {
 
   /// Speaks [text] in a voice matching its language.
   Future<void> speak(String text) async {
+    // HARD MUTE during phone calls: no sentence may START while the
+    // phone is ringing or a call is connected — a streamed reply that
+    // finishes mid-call must never talk over it.
+    if (PhoneStateGuard.instance.inCall) return;
     final say = sanitizeForSpeech(text);
     if (say.isEmpty) return;
     await _applyLanguageFor(say);

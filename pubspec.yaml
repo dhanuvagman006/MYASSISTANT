@@ -49,6 +49,12 @@ dependencies:
   flutter_contacts: ^1.1.9+2
   flutter_phone_direct_caller: ^2.1.1
 
+  # Incoming-call guard — the moment the phone rings, Hari stops
+  # speaking instantly and releases the mic (READ_PHONE_STATE runtime
+  # permission on Android; CallKit observer on iOS, no permission).
+  phone_state: ^2.0.1
+  permission_handler: ^11.3.1
+
   # Reminder notifications — fire even when the app is closed.
   # PINNED to 19.x: v18 still REQUIRES uiLocalNotificationDateInterpretation
   # (removed in 19), and v20+ has further breaking changes — our
