@@ -10,8 +10,7 @@ import '../widgets/document_card.dart';
 /// A thin view over AssistantController: the wake/answer loop keeps
 /// running even when this screen isn't visible or the display is off.
 class VoiceHomeScreen extends StatefulWidget {
-  final VoidCallback? onOpenChat;
-  const VoiceHomeScreen({super.key, this.onOpenChat});
+  const VoiceHomeScreen({super.key});
 
   @override
   State<VoiceHomeScreen> createState() => _VoiceHomeScreenState();

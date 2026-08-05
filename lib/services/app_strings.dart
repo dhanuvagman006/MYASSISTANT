@@ -11,7 +11,6 @@ class S {
   static const Map<String, Map<String, String>> _t = {
     // ---- bottom navigation ----
     'tab_assistant': {'en': 'Assistant', 'hi': 'सहायक', 'ml': 'അസിസ്റ്റന്റ്'},
-    'tab_chat': {'en': 'Chat', 'hi': 'चैट', 'ml': 'ചാറ്റ്'},
     'tab_today': {'en': 'Today', 'hi': 'आज', 'ml': 'ഇന്ന്'},
     'tab_calls': {'en': 'Calls', 'hi': 'कॉल', 'ml': 'കോളുകൾ'},
     'tab_you': {'en': 'You', 'hi': 'आप', 'ml': 'നിങ്ങൾ'},

@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 
 import 'models/remote_config.dart';
 import 'screens/auth/auth_screen.dart';
-import 'screens/blank_chat_screen.dart';
 import 'screens/calls_screen.dart';
 import 'screens/daily_screen.dart';
 import 'screens/documents_screen.dart';
@@ -145,11 +144,7 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      VoiceHomeScreen(onOpenChat: () => setState(() => _tab = 1)),
-      // Chat tab: AI text-chat unmounted for now — blank placeholder
-      // until the new page design lands. Restore by swapping back to
-      // `const ChatScreen()` (screens/chat_screen.dart is untouched).
-      const BlankChatScreen(),
+      const VoiceHomeScreen(),
       const TodayHub(),
       const CallsScreen(),
       const PrivacyScreen(),
@@ -249,9 +244,6 @@ class _HomeShellState extends State<HomeShell> {
         destinations: [
           NavigationDestination(
               icon: const Icon(Icons.adjust_rounded), label: S.t('tab_assistant')),
-          NavigationDestination(
-              icon: const Icon(Icons.chat_bubble_outline_rounded),
-              label: S.t('tab_chat')),
           NavigationDestination(
               icon: const Icon(Icons.wb_sunny_outlined), label: S.t('tab_today')),
           NavigationDestination(
