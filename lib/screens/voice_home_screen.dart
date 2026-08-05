@@ -5,6 +5,8 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../services/assistant_controller.dart';
 import '../theme/app_theme.dart';
 import '../widgets/document_card.dart';
+import 'face_screen.dart';
+import 'upgrade_screen.dart';
 
 /// Screen 01 — Voice Home (A1–A4, M1).
 /// A thin view over AssistantController: the wake/answer loop keeps
@@ -90,6 +92,23 @@ class _VoiceHomeScreenState extends State<VoiceHomeScreen>
       OrbState.thinking => 'Thinking…',
       OrbState.speaking => 'Speaking — tap the orb to stop',
     };
+  }
+
+  /// FACE MODE — Hari appears on screen and talks. Pro feature; a 402
+  /// routes straight to the upgrade page with the reason on screen.
+  Future<void> _openFace(BuildContext context) async {
+    HapticFeedback.mediumImpact();
+    final result = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const FaceScreen()),
+    );
+    if (result == 'pro_required' && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content:
+              Text('Face Mode is a Pro feature — talk to Hari face to face.')));
+      Navigator.push(
+          context, MaterialPageRoute(builder: (_) => const UpgradeScreen()));
+    }
   }
 
   Future<void> _pickLanguage(BuildContext context) async {
@@ -184,6 +203,35 @@ class _VoiceHomeScreenState extends State<VoiceHomeScreen>
                   alignment: WrapAlignment.center,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
+                    // Face Mode — the marigold accent makes it the one
+                    // "wow" action on the home screen.
+                    InkWell(
+                      borderRadius: BorderRadius.circular(18),
+                      onTap: () => _openFace(context),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AppColors.marigold.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                              color:
+                                  AppColors.marigold.withValues(alpha: 0.5)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.videocam_rounded,
+                                size: 18, color: Color(0xFFB27107)),
+                            SizedBox(width: 8),
+                            Text('Face to face',
+                                style: TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ),
+                    ),
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 2),

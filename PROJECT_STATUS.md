@@ -347,3 +347,22 @@ app polls `/agent-call/:id` and SPEAKS his answer back ("I spoke with Allen…")
   video + use-case text; client whitelisting is the ONLY remaining blocker.
 - Confirm owner rotated ALL keys leaked in chat on 3 Aug (GitHub token,
   Gemini, Groq, Google client secret — JWT/admin/app/metrics already rotated).
+
+## D-ID avatar integration (5 Aug 2026)
+- **Face Mode** — `screens/face_screen.dart`: WebView over the backend's
+  hosted `/did/face` page (D-ID streaming avatar; words come from OUR backend
+  via its custom-LLM bridge). Entry: marigold "Face to face" chip on Voice
+  Home. Pauses/resumes the wake-word loop around the session (mic exclusivity),
+  grants the WebView's runtime mic request. 402 → Upgrade screen.
+- **Face-to-face first meeting** — the sign-up interview offers "Meet Hari
+  face to face" (flag `face_interview` from /config); classic voice interview
+  remains the fallback and the default.
+- **Video briefing** — `_VideoBriefingCard` on the Daily screen: create →
+  poll → inline `video_player` playback of the daily avatar briefing. Hidden
+  when the server has D-ID off; Pro-gated via 402.
+- **Upgrade screen** — Pro/Family perk lists now lead with the avatar features.
+- **Retired**: Smart Home "coming soon" tab (dead placeholder). Restore from
+  git (`screens/smart_home_screen.dart`) when Google Home/Matter actually lands.
+- New deps: `webview_flutter`, `video_player` → run `flutter pub get`.
+- ⚠️ Not compiled in this environment (no Flutter SDK) — run
+  `flutter analyze` locally; expect at most minor lint fixes.

@@ -7,6 +7,8 @@ import '../services/assistant_controller.dart';
 import '../services/notification_service.dart';
 import '../widgets/nearby_section.dart';
 import '../theme/app_theme.dart';
+import 'upgrade_screen.dart';
+import 'package:video_player/video_player.dart';
 
 /// Screen 03 — Daily briefing (C1, C2, D3, D4). Now LIVE:
 ///   • Weather card (Open-Meteo via backend, last GPS fix or memory city)
@@ -192,6 +194,12 @@ class _DailyScreenState extends State<DailyScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         children: [
+          // ---------------- VIDEO BRIEFING (D-ID, Pro) ----------------
+          // Hari's face reads your morning summary — rendered server-side
+          // once a day; this card generates, polls, then plays it.
+          const _VideoBriefingCard(),
+          const SizedBox(height: 16),
+
           // ---------------- MORNING BRIEFING (C2) ----------------
           Card(
             color: AppColors.peacock.withValues(alpha: 0.08),
@@ -444,6 +452,199 @@ class _WeatherCard extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+
+/// VIDEO BRIEFING — one avatar video per day, generated on the server
+/// (weather + reminders + headlines, spoken by Hari's face). States:
+///   none       → "Create today's video" button (Pro; 402 → upgrade page)
+///   processing → progress row, polls every 5 s
+///   done       → inline player with play/pause
+/// Hidden entirely while the server has D-ID switched off.
+class _VideoBriefingCard extends StatefulWidget {
+  const _VideoBriefingCard();
+
+  @override
+  State<_VideoBriefingCard> createState() => _VideoBriefingCardState();
+}
+
+class _VideoBriefingCardState extends State<_VideoBriefingCard> {
+  String _status = 'loading';
+  String? _url;
+  VideoPlayerController? _player;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  @override
+  void dispose() {
+    _player?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _refresh() async {
+    try {
+      final b = await ApiService.fetchVideoBriefing();
+      if (!mounted) return;
+      setState(() {
+        _status = b.status;
+        _url = b.url;
+      });
+      if (b.status == 'done' && b.url != null) {
+        _attachPlayer(b.url!);
+      } else if (b.status == 'processing' || b.status == 'creating') {
+        Future.delayed(const Duration(seconds: 5), () {
+          if (mounted) _refresh();
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _status = 'unavailable');
+    }
+  }
+
+  Future<void> _attachPlayer(String url) async {
+    if (_player != null) return;
+    final p = VideoPlayerController.networkUrl(Uri.parse(url));
+    try {
+      await p.initialize();
+      if (!mounted) {
+        p.dispose();
+        return;
+      }
+      setState(() => _player = p);
+    } catch (_) {
+      p.dispose();
+    }
+  }
+
+  Future<void> _generate() async {
+    HapticFeedback.selectionClick();
+    setState(() => _busy = true);
+    try {
+      final b = await ApiService.generateVideoBriefing();
+      if (!mounted) return;
+      setState(() {
+        _status = b.status;
+        _url = b.url;
+        _busy = false;
+      });
+      if (b.status == 'processing' || b.status == 'creating') {
+        Future.delayed(const Duration(seconds: 5), () {
+          if (mounted) _refresh();
+        });
+      } else if (b.status == 'done' && b.url != null) {
+        _attachPlayer(b.url!);
+      }
+    } on ProRequired {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text(
+              'Video briefings are a Pro feature — Hari reads your morning, on camera.')));
+      Navigator.push(
+          context, MaterialPageRoute(builder: (_) => const UpgradeScreen()));
+    } catch (_) {
+      if (mounted) setState(() {
+        _busy = false;
+        _status = 'error';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Server has the feature off (no D-ID key) → take no space at all.
+    if (_status == 'unavailable') return const SizedBox.shrink();
+
+    final muted =
+        Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6);
+
+    if (_status == 'done' && _player != null && _player!.value.isInitialized) {
+      return Card(
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AspectRatio(
+              aspectRatio: _player!.value.aspectRatio == 0
+                  ? 16 / 9
+                  : _player!.value.aspectRatio,
+              child: GestureDetector(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  setState(() => _player!.value.isPlaying
+                      ? _player!.pause()
+                      : _player!.play());
+                },
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    VideoPlayer(_player!),
+                    if (!_player!.value.isPlaying)
+                      Container(
+                        decoration: const BoxDecoration(
+                            shape: BoxShape.circle, color: Colors.black38),
+                        padding: const EdgeInsets.all(6),
+                        child: const Icon(Icons.play_arrow_rounded,
+                            size: 46, color: Colors.white),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            ListTile(
+              dense: true,
+              leading:
+                  const Icon(Icons.auto_awesome, color: AppColors.marigold),
+              title: const Text("Today's briefing from Hari"),
+              subtitle: Text('Fresh every morning',
+                  style: TextStyle(fontSize: 12.5, color: muted)),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_status == 'processing' || _status == 'creating') {
+      return Card(
+        child: ListTile(
+          leading: const SizedBox(
+              width: 26,
+              height: 26,
+              child: CircularProgressIndicator(strokeWidth: 2.6)),
+          title: const Text('Hari is recording your briefing…'),
+          subtitle: Text('Usually ready in under a minute',
+              style: TextStyle(fontSize: 12.5, color: muted)),
+        ),
+      );
+    }
+
+    // none / error / loading → offer to create.
+    return Card(
+      color: AppColors.marigold.withValues(alpha: 0.10),
+      child: ListTile(
+        leading: const Icon(Icons.smart_display_rounded,
+            color: Color(0xFFB27107), size: 30),
+        title: Text(_status == 'error'
+            ? 'Briefing hit a snag — try again'
+            : "Today's video briefing"),
+        subtitle: Text('Hari reads your morning, on camera',
+            style: TextStyle(fontSize: 12.5, color: muted)),
+        trailing: _busy
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2.4))
+            : FilledButton(
+                onPressed: _status == 'loading' ? null : _generate,
+                child: const Text('Create')),
       ),
     );
   }

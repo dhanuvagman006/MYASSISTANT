@@ -10,7 +10,6 @@ import 'screens/inbox_screen.dart';
 import 'screens/interview_screen.dart';
 import 'screens/lock_screen.dart';
 import 'screens/privacy_screen.dart';
-import 'screens/smart_home_screen.dart';
 import 'screens/voice_home_screen.dart';
 import 'services/api_service.dart';
 import 'services/app_strings.dart';
@@ -270,12 +269,11 @@ class _TodayHubState extends State<TodayHub> {
 
   @override
   Widget build(BuildContext context) {
-    const pages = [
-      DailyScreen(),
-      InboxScreen(),
-      SmartHomeScreen(),
-      DocumentsScreen()
-    ];
+    // Smart Home's "coming soon" placeholder was RETIRED (it promised a
+    // feature that doesn't exist yet — dead weight in the hub). The screen
+    // returns as a real tab when Google Home / Matter lands (Phase 2);
+    // restore from git history: screens/smart_home_screen.dart.
+    const pages = [DailyScreen(), InboxScreen(), DocumentsScreen()];
 
     return Column(
       children: [
@@ -299,8 +297,7 @@ class _TodayHubState extends State<TodayHub> {
             segments: const [
               ButtonSegment(value: 0, label: Text('Daily')),
               ButtonSegment(value: 1, label: Text('Inbox')),
-              ButtonSegment(value: 2, label: Text('Home')),
-              ButtonSegment(value: 3, label: Text('Docs')),
+              ButtonSegment(value: 2, label: Text('Docs')),
             ],
             selected: {_segment},
             onSelectionChanged: (s) {

@@ -158,6 +158,8 @@ class _UpgradeScreenState extends State<UpgradeScreen> {
                   price:
                       '${_rupees((b['prices']?['pro'] as int?) ?? 24900)} / month',
                   perks: const [
+                    'Face Mode — talk to Hari face to face, live video',
+                    'Daily video briefing — Hari reads your morning on camera',
                     'Unlimited voice questions',
                     '30 agent-call minutes — Hari calls people for you',
                     '100 saved documents',
@@ -171,7 +173,7 @@ class _UpgradeScreenState extends State<UpgradeScreen> {
                   price:
                       '${_rupees((b['prices']?['family'] as int?) ?? 49900)} / month',
                   perks: const [
-                    'Everything in Pro, for up to 5 people',
+                    'Everything in Pro — including Face Mode — for up to 5 people',
                     '60 pooled agent-call minutes',
                     'Perfect for parents — Hari speaks their language',
                   ],

@@ -748,7 +748,67 @@ class ApiService {
         .timeout(const Duration(seconds: 15));
     if (r.statusCode != 200) throw Exception('Could not clear (${r.statusCode})');
   }
+
+  // ------------- Face Mode + video briefing (D-ID via backend) -------------
+
+  /// Is Face Mode configured on the server, and may THIS user open it?
+  static Future<({bool enabled, bool allowed, String? reason})>
+      faceStatus() async {
+    final r = await _client
+        .get(Uri.parse('$baseUrl/did/status'), headers: _authHeaders)
+        .timeout(const Duration(seconds: 10));
+    if (r.statusCode != 200) return (enabled: false, allowed: false, reason: null);
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    return (
+      enabled: j['enabled'] == true,
+      allowed: j['faceAllowed'] == true,
+      reason: j['reason'] as String?,
+    );
+  }
+
+  /// Start a face session; returns the URL for the in-app WebView.
+  /// [mode] is 'assistant' (Pro) or 'interview' (the one free first hello).
+  /// Throws [ProRequired] on 402 so screens can route to the upgrade page.
+  static Future<String> startFaceSession({String mode = 'assistant'}) async {
+    final r = await _client
+        .post(
+          Uri.parse('$baseUrl/did/session'),
+          headers: _authHeaders,
+          body: jsonEncode({'mode': mode}),
+        )
+        .timeout(const Duration(seconds: 25));
+    if (r.statusCode == 402) throw ProRequired();
+    if (r.statusCode != 200) {
+      throw Exception('Face Mode unavailable (${r.statusCode})');
+    }
+    return (jsonDecode(r.body) as Map<String, dynamic>)['faceUrl'] as String;
+  }
+
+  /// Today's video briefing: status none|creating|processing|done|error.
+  static Future<({String status, String? url})> fetchVideoBriefing() =>
+      _briefing(generate: false);
+
+  /// Ask the server to render today's briefing video (Pro).
+  static Future<({String status, String? url})> generateVideoBriefing() =>
+      _briefing(generate: true);
+
+  static Future<({String status, String? url})> _briefing(
+      {required bool generate}) async {
+    final uri = Uri.parse('$baseUrl/did/briefing');
+    final r = await (generate
+            ? _client.post(uri, headers: _chatHeaders)
+            : _client.get(uri, headers: _chatHeaders))
+        .timeout(const Duration(seconds: 30));
+    if (r.statusCode == 402) throw ProRequired();
+    if (r.statusCode == 503) return (status: 'unavailable', url: null);
+    if (r.statusCode != 200) throw Exception('Briefing failed (${r.statusCode})');
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    return (status: (j['status'] as String?) ?? 'none', url: j['url'] as String?);
+  }
 }
+
+/// The backend answered 402 pro_required — this feature needs Pro.
+class ProRequired implements Exception {}
 
 /// The backend has no telephony (Plivo) configured — agent calls are
 /// unavailable; the app falls back to placing a normal direct call.
