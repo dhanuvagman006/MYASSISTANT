@@ -33,3 +33,6 @@ ios/Runner/GoogleService-Info.plist
 android/key.properties
 android/app/*.jks
 android/app/*.keystore
+
+# Data dumps / exports — never commit
+*.csv
