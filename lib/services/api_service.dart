@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart' show MediaType;
 
 import '../models/chat_message.dart';
+import '../models/action_entry.dart';
 import '../models/memory_item.dart';
 import '../models/place.dart';
 import '../models/reminder.dart';
@@ -515,6 +516,27 @@ class ApiService {
       msg = (jsonDecode(body)['error'] as String?) ?? msg;
     } catch (_) {}
     throw QuotaExceeded(msg);
+  }
+
+  // ---------------- ACTIVITY LOG (audit trail) ----------------
+  // Backs "Privacy & memory -> Activity log". Every externally-visible
+  // thing Hari did (orders, calls, calendar events, drafts, documents,
+  // reminders) — newest first, cursor-paged with `before` = the last id
+  // of the previous page (backend GET /actions, Phase 1 / ADR-004).
+
+  /// One page of the signed-in user's action log.
+  static Future<List<ActionEntry>> fetchActions({int? before, int limit = 50}) async {
+    final q = 'limit=$limit${before != null ? '&before=$before' : ''}';
+    final r = await http
+        .get(Uri.parse('$baseUrl/actions?$q'), headers: _authHeaders)
+        .timeout(const Duration(seconds: 15));
+    if (r.statusCode != 200) {
+      throw Exception('Could not load activity (${r.statusCode})');
+    }
+    final list = (jsonDecode(r.body)['actions'] as List? ?? []);
+    return list
+        .map((a) => ActionEntry.fromJson(a as Map<String, dynamic>))
+        .toList();
   }
 
   // ---------------- PER-USER MEMORY ----------------

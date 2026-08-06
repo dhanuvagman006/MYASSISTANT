@@ -9,6 +9,7 @@ import '../services/api_service.dart';
 import '../services/app_lock.dart';
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
+import 'actions_screen.dart';
 import 'upgrade_screen.dart';
 
 /// Screen 08 — Privacy, Memory & Safety (E1–E3, F1–F3).
@@ -44,6 +45,19 @@ class PrivacyScreen extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         const _MemorySection(),
+        const SizedBox(height: 16),
+        // ADR-004 — the audit trail: everything Hari has DONE (orders,
+        // calls, events, drafts, documents, reminders), newest first.
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.receipt_long_outlined),
+            title: const Text('Activity log'),
+            subtitle: const Text('Everything Hari has done for you'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const ActionsScreen())),
+          ),
+        ),
         const SizedBox(height: 16),
         _Section(
           title: 'CONNECTED SERVICES',
