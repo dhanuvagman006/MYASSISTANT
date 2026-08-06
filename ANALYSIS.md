@@ -67,7 +67,7 @@ db: Postgres (pg) + SQLite FTS5. Deploy: Docker (node:20-alpine, non-root), k8s 
 4. TTS on device. Phone-state guard releases mic on incoming calls.
 5. Face mode: D-ID WebRTC avatar in WebView, words sourced from own backend via custom-LLM bridge.
 
-**Providers:** Gemini only (`gemini-2.0-flash`). PROJECT_STATUS notes the client contract requires a second provider — currently unmet.
+**Providers:** two-provider chain — Groq (Llama 3.3 70B, latency-first, incl. streaming) → Gemini 2.0 Flash fallback, order via `AI_PROVIDER_ORDER`. _Correction 07 Aug: the initial audit repeated a stale PROJECT_STATUS claim of "Gemini only"._
 
 ## 4. Memory system (current)
 
@@ -97,7 +97,7 @@ db: Postgres (pg) + SQLite FTS5. Deploy: Docker (node:20-alpine, non-root), k8s 
 | Severity | Issue |
 |---|---|
 | **Critical** | GitHub PAT was shared in plaintext chat and embedded in local git remotes; still live at audit time. **Revoke immediately**, re-clone with a fresh fine-grained token. |
-| **High** | `AUTH_DISABLED=true` dev bypass on chat auth middleware — must never reach prod; add a boot-time refusal when `NODE_ENV=production`. |
+| ~~High~~ resolved | `AUTH_DISABLED=true` dev bypass — a boot-time production refusal already exists in server.js (verified 07 Aug; initial audit missed it). |
 | **High** | No certificate pinning in the app (plain `http` package). |
 | Medium | Session key in SharedPreferences (plaintext) rather than `flutter_secure_storage` (Keystore/Keychain). |
 | Medium | Per-user rate limits exist but no abuse alerting; admin route auth model needs review. |
@@ -109,7 +109,6 @@ db: Postgres (pg) + SQLite FTS5. Deploy: Docker (node:20-alpine, non-root), k8s 
 |---|---|
 | High | 11 Flutter plugins apply deprecated KGP — future Flutter versions will fail to build. Upgrade sweep required. |
 | High | Screen-off wake word lost (foreground-task plugin removed on AGP 9). Core "ambient" promise degraded. |
-| High | Single AI provider (Gemini) — availability and contract risk. |
 | Medium | App test coverage ≈ 0 (no `test/` of substance). Backend has one unit script. |
 | Medium | `setState` everywhere; `AssistantController` is trending toward a god object (mic ownership, wake word, TTS, lifecycle). |
 | Medium | Embeddings as JSON text — O(n) scan per query; fine to ~10k rows/user, then needs pgvector. |

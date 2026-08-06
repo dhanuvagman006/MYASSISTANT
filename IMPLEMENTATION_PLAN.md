@@ -15,12 +15,12 @@ _Section-3 deliverable · 07 Aug 2026 · read after ANALYSIS.md + GAP_ANALYSIS.m
 | # | Work item | Repo | Validation |
 |---|---|---|---|
 | 1.1 | Revoke leaked PAT; fresh fine-grained token; scrub token from any remotes/scripts | both | old token returns 401 |
-| 1.2 | Boot-time refusal if `AUTH_DISABLED=true` && `NODE_ENV=production` | backend | unit test |
+| 1.2 | ~~Boot-time production refusal for AUTH_DISABLED~~ **already existed** (verified 07 Aug) | backend | ✅ |
 | 1.3 | `flutter_secure_storage` for session/key material (migrate from SharedPreferences) | app | keys absent from prefs XML |
 | 1.4 | Cert pinning: move ApiService `http`→`dio` + pinned SPKI, with remote-config escape hatch for rotation | app | MITM proxy fails |
 | 1.5 | KGP plugin sweep: upgrade the 11 flagged plugins; document any that lack fixes | app | `flutter build` clean of KGP warnings |
-| 1.6 | Second AI provider in `ai/router.js` (env-selected, health-based failover) — contract item | backend | kill primary key → replies continue |
-| 1.7 | `actions_log` table + write path from every tool/agent execution + read view in privacy screen | both | every tool call visible |
+| 1.6 | ~~Second AI provider~~ **already existed**: Groq→Gemini chain incl. streaming (verified 07 Aug; PROJECT_STATUS was stale) | backend | ✅ |
+| 1.7 | `actions_log` + audit module + hooks (reminders, docs, calendar, email drafts, food orders, agent calls) + GET /actions + privacy export/erasure | backend **done** (PR #audit); app read view pending | 8/8 behavioral tests |
 | 1.8 | Test scaffolding: backend `npm test` suite (supertest on /chat,/memory,/docs mocks); app `flutter_test` for ApiService + AssistantController state machine | both | CI green |
 | 1.9 | CHANGELOG.md + /docs/adr/ established | app | committed |
 

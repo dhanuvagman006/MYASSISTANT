@@ -21,7 +21,6 @@ Legend: complexity L/M/H/VH. "Approach" is stack-honest (Flutter + Node), not th
 | Ambient command palette (overlay) | App-open voice home | Query from any screen | Context-switch cost | M | `SYSTEM_ALERT_WINDOW` overlay via platform channel or `flutter_overlay_window`; OEM-permission fallback = quick-settings tile + notification action |
 | Proactive suggestions | ❌ | Contextual bottom sheet | Reactive-only assistant | M | Server-side suggestion engine (time/calendar/reminders/memory) → new `/suggestions` → card strip on voice_home. Start rule-based |
 | Screen-off wake word | ❌ (regressed) | Always listening | Core ambient promise broken | M | Replace removed plugin: native Kotlin foreground service hosting Porcupine, platform channel to Flutter |
-| Provider fallback | Gemini only | Multi-provider | Contract + availability risk | L | Re-add second provider in `ai/router.js` behind env; health-based failover |
 | Offline capability | ❌ | Graceful degradation | Network loss = silence | M | Queue outbound in app (sqflite); canned offline replies for reminders/local queries |
 | Automation engine | ❌ | Trigger→condition→action | Power-user retention | H | Phase 4; reminders infra is the seed |
 | Audit log of AI actions | Partial (implicit in stores) | Immutable user-visible log | Trust prerequisite for autonomy | L | `actions_log` table + privacy-screen view. **Must land before more autonomy** |
@@ -31,10 +30,9 @@ Legend: complexity L/M/H/VH. "Approach" is stack-honest (Flutter + Node), not th
 
 ## Prioritized gap list (impact ÷ effort)
 
-1. **Security hotfixes** (token revoke, AUTH_DISABLED guard, secure storage, pinning)
+1. **Security hotfixes** (token revoke, secure storage, pinning — AUTH_DISABLED guard verified already present)
 2. **Build health**: KGP plugin sweep — existential for future builds
-3. **Provider fallback** — contract requirement, one file
-4. **Share-sheet interception** — biggest wow per line of code
+3. **Share-sheet interception** — biggest wow per line of code
 5. **Screen-off wake word** (native service) — restores the ambient promise
 6. **Audit log** — cheap, unlocks trust for everything autonomous
 7. **Memory decay + graph triples** — deepens existing strength
