@@ -59,7 +59,11 @@ class _FaceScreenState extends State<FaceScreen> {
         return;
       }
       final url = await ApiService.startFaceSession(mode: widget.mode);
-      final c = WebViewController()
+      final c = WebViewController(
+        // The embed asks the WebView for mic access at runtime — grant it
+        // (the OS-level permission was already approved above).
+        onPermissionRequest: (request) => request.grant(),
+      )
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
         ..setBackgroundColor(AppColors.ink)
         ..setNavigationDelegate(NavigationDelegate(
@@ -75,10 +79,7 @@ class _FaceScreenState extends State<FaceScreen> {
               });
             }
           },
-        ))
-        // The embed asks the WebView for mic access at runtime — grant it
-        // (the OS-level permission was already approved above).
-        ..setOnPlatformPermissionRequest((request) => request.grant());
+        ));
       await c.loadRequest(Uri.parse(url));
       if (mounted) setState(() => _web = c);
     } on ProRequired {
