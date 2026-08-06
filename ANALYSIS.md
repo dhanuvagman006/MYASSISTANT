@@ -99,7 +99,7 @@ db: Postgres (pg) + SQLite FTS5. Deploy: Docker (node:20-alpine, non-root), k8s 
 | **Critical** | GitHub PAT was shared in plaintext chat and embedded in local git remotes; still live at audit time. **Revoke immediately**, re-clone with a fresh fine-grained token. |
 | ~~High~~ resolved | `AUTH_DISABLED=true` dev bypass — a boot-time production refusal already exists in server.js (verified 07 Aug; initial audit missed it). |
 | **High** | No certificate pinning in the app (plain `http` package). |
-| Medium | Session key in SharedPreferences (plaintext) rather than `flutter_secure_storage` (Keystore/Keychain). |
+| ~~Medium~~ resolved | Session token verified to already live in `flutter_secure_storage` (Keystore/Keychain); SharedPreferences hold only non-secret prefs. Initial audit was wrong. |
 | Medium | Per-user rate limits exist but no abuse alerting; admin route auth model needs review. |
 | Low | Uploaded doc files stored unencrypted at rest in `DATA_DIR`. |
 

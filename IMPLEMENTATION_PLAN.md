@@ -16,11 +16,11 @@ _Section-3 deliverable · 07 Aug 2026 · read after ANALYSIS.md + GAP_ANALYSIS.m
 |---|---|---|---|
 | 1.1 | Revoke leaked PAT; fresh fine-grained token; scrub token from any remotes/scripts | both | old token returns 401 |
 | 1.2 | ~~Boot-time production refusal for AUTH_DISABLED~~ **already existed** (verified 07 Aug) | backend | ✅ |
-| 1.3 | `flutter_secure_storage` for session/key material (migrate from SharedPreferences) | app | keys absent from prefs XML |
+| 1.3 | ~~Secure storage migration~~ **already existed**: session JWT is in `flutter_secure_storage` (Keystore/Keychain); remaining SharedPreferences hold only wake/locale/style prefs — no secrets (verified 07 Aug) | app | ✅ |
 | 1.4 | Cert pinning: move ApiService `http`→`dio` + pinned SPKI, with remote-config escape hatch for rotation | app | MITM proxy fails |
 | 1.5 | KGP plugin sweep: upgrade the 11 flagged plugins; document any that lack fixes | app | `flutter build` clean of KGP warnings |
 | 1.6 | ~~Second AI provider~~ **already existed**: Groq→Gemini chain incl. streaming (verified 07 Aug; PROJECT_STATUS was stale) | backend | ✅ |
-| 1.7 | `actions_log` + audit module + hooks (reminders, docs, calendar, email drafts, food orders, agent calls) + GET /actions + privacy export/erasure | backend **done** (PR #audit); app read view pending | 8/8 behavioral tests |
+| 1.7 | `actions_log` + audit module + hooks + GET /actions + privacy export/erasure | **done both sides**: backend (8/8 tests) + app Activity log screen in Privacy | ✅ pending device run |
 | 1.8 | Test scaffolding: backend `npm test` suite (supertest on /chat,/memory,/docs mocks); app `flutter_test` for ApiService + AssistantController state machine | both | CI green |
 | 1.9 | CHANGELOG.md + /docs/adr/ established | app | committed |
 
