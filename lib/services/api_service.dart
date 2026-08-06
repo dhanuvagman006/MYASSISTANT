@@ -805,6 +805,77 @@ class ApiService {
     final j = jsonDecode(r.body) as Map<String, dynamic>;
     return (status: (j['status'] as String?) ?? 'none', url: j['url'] as String?);
   }
+
+  // ---------------- FOCUS GUARD + MEETING COPILOT ----------------
+
+  /// Overload analysis for the coming days.
+  /// null = Calendar not linked (409); {} on any transient failure so the
+  /// Today card simply hides instead of erroring.
+  static Future<Map<String, dynamic>?> fetchFocusPlan({int days = 2}) async {
+    try {
+      final tz = DateTime.now().timeZoneOffset.inMinutes;
+      final r = await http
+          .get(
+              Uri.parse(
+                  '$baseUrl/google/focus-plan?days=$days&tzOffsetMin=$tz'),
+              headers: _authHeaders)
+          .timeout(const Duration(seconds: 20));
+      if (r.statusCode == 409) return null;
+      if (r.statusCode != 200) return const {};
+      return jsonDecode(r.body) as Map<String, dynamic>;
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  /// D3 write path — used by Focus Guard AFTER the user approves the
+  /// buffer preview. Throws with the backend's real error message.
+  static Future<void> createCalendarEvent({
+    required String title,
+    required int startMs,
+    int? endMs,
+    String? description,
+  }) async {
+    final r = await http
+        .post(
+          Uri.parse('$baseUrl/google/event'),
+          headers: _authHeaders,
+          body: jsonEncode({
+            'title': title,
+            'startMs': startMs,
+            if (endMs != null) 'endMs': endMs,
+            if (description != null) 'description': description,
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
+    if (r.statusCode != 201) {
+      throw Exception(
+          (jsonDecode(r.body)['error'] as String?) ?? 'event ${r.statusCode}');
+    }
+  }
+
+  /// Meeting Copilot — transcript → decisions/actions/follow-up draft.
+  /// Throws with the backend's message on failure (502 = AI unavailable).
+  static Future<Map<String, dynamic>> processTranscript(
+    String transcript, {
+    bool stageReminders = false,
+  }) async {
+    final r = await http
+        .post(
+          Uri.parse('$baseUrl/meetings/process-transcript'),
+          headers: _authHeaders,
+          body: jsonEncode({
+            'transcript': transcript,
+            'stageReminders': stageReminders,
+          }),
+        )
+        .timeout(const Duration(seconds: 45));
+    if (r.statusCode != 200) {
+      throw Exception((jsonDecode(r.body)['error'] as String?) ??
+          'transcript ${r.statusCode}');
+    }
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
 }
 
 /// The backend answered 402 pro_required — this feature needs Pro.

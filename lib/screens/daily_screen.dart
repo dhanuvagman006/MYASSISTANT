@@ -6,8 +6,10 @@ import '../services/api_service.dart';
 import '../services/assistant_controller.dart';
 import '../services/notification_service.dart';
 import '../widgets/nearby_section.dart';
+import '../widgets/focus_guard_card.dart';
 import '../theme/app_theme.dart';
 import 'upgrade_screen.dart';
+import 'meeting_notes_screen.dart';
 import 'package:video_player/video_player.dart';
 
 /// Screen 03 — Daily briefing (C1, C2, D3, D4). Now LIVE:
@@ -213,6 +215,25 @@ class _DailyScreenState extends State<DailyScreen> {
                   color: AppColors.peacock, size: 34),
               onTap: () =>
                   AssistantController.instance.runText('Give me my daily briefing'),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // ---------------- FOCUS GUARD ----------------
+          // Renders only when a >3h back-to-back stretch is detected.
+          const FocusGuardCard(),
+
+          // ---------------- MEETING COPILOT ----------------
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.record_voice_over_rounded,
+                  color: AppColors.peacock),
+              title: const Text('Meeting notes'),
+              subtitle: const Text(
+                  'Paste a transcript — get decisions, tasks and a draft.'),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const MeetingNotesScreen())),
             ),
           ),
           const SizedBox(height: 16),
