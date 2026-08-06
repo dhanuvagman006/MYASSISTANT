@@ -35,7 +35,7 @@ which requires a real `GEMINI_API_KEY`)._
 | E3 | Memory manager | ✅ | `/memory` GET/POST/DELETE + settings UI |
 | F1 | Sign-in & app lock | ✅📱 | `/auth` (google/apple/email) + `app_lock.dart`, `lock_screen.dart`; verify biometrics on device |
 | F2 | Privacy dashboard | ✅ | `privacy_screen.dart` + `GET /privacy/export` (verified live) |
-| F3 | Safety rules | 🟡 | One line in the system prompt ("Decline harmful requests politely") + provider defaults; no care-notes layer for sensitive topics as specified |
+| F3 | Safety rules | ✅ | Care-notes layer in `router.js` system prompt (backend commit `0ae3b02`, 6 Aug 2026): health urgency escalation, self-harm helpline (Tele-MANAS 14416), money/legal professional flags, scam warnings, prompt-leak guard. Behaviour is prompt-level — worth spot-checking real model replies on sensitive queries before delivery |
 
 **Phase 1 score: 21 ✅ · 3 🟡 · 0 ❌** — several ✅ items still need real-device testing (📱).
 
