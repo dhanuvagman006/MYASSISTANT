@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -464,4 +465,152 @@ class NeonBackdrop extends StatelessWidget {
           ),
         ),
       );
+}
+
+/// ─────────────────────────────────────────────────────────────────────────
+///  Liquid Glass layer — aurora backdrop + frosted modal sheets.
+/// ─────────────────────────────────────────────────────────────────────────
+
+/// Animated aurora-mesh background: three neon blobs drifting slowly on the
+/// deep-space base. Pure gradients — no BackdropFilter — so it stays cheap.
+class AuroraBackdrop extends StatefulWidget {
+  final Widget child;
+  const AuroraBackdrop({super.key, required this.child});
+
+  @override
+  State<AuroraBackdrop> createState() => _AuroraBackdropState();
+}
+
+class _AuroraBackdropState extends State<AuroraBackdrop>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: const Duration(seconds: 18))
+        ..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(color: Neon.bg),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          AnimatedBuilder(
+            animation: _c,
+            builder: (context, _) => CustomPaint(
+              painter: _AuroraPainter(_c.value),
+            ),
+          ),
+          widget.child,
+        ],
+      ),
+    );
+  }
+}
+
+class _AuroraPainter extends CustomPainter {
+  final double t;
+  _AuroraPainter(this.t);
+
+  void _blob(Canvas canvas, Size s, Color c, double phase, double dx,
+      double dy, double r) {
+    final a = 2 * 3.14159265 * (t + phase);
+    final center = Offset(
+      s.width * (dx + 0.10 * (0.5 + 0.5 * math.cos(a))),
+      s.height * (dy + 0.08 * (0.5 + 0.5 * math.sin(a * 0.8))),
+    );
+    final paint = Paint()
+      ..shader = RadialGradient(colors: [
+        c.withValues(alpha: 0.20),
+        c.withValues(alpha: 0.0),
+      ]).createShader(Rect.fromCircle(center: center, radius: r));
+    canvas.drawCircle(center, r, paint);
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    _blob(canvas, size, Neon.violet, 0.00, 0.10, 0.05, 260);
+    _blob(canvas, size, Neon.cyan, 0.33, 0.85, 0.80, 300);
+    _blob(canvas, size, Neon.pink, 0.66, 0.75, 0.20, 210);
+  }
+
+  @override
+  bool shouldRepaint(covariant _AuroraPainter old) => old.t != t;
+}
+
+
+
+/// Frosted glass modal bottom sheet — the ONLY navigation surface of the
+/// single-page app. Everything secondary opens through this.
+Future<T?> showGlassSheet<T>(
+  BuildContext context, {
+  required Widget child,
+  String? title,
+  double heightFactor = 0.88,
+}) {
+  return showModalBottomSheet<T>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    barrierColor: Colors.black.withValues(alpha: 0.55),
+    builder: (ctx) {
+      final h = MediaQuery.of(ctx).size.height * heightFactor;
+      return ClipRRect(
+        borderRadius:
+            const BorderRadius.vertical(top: Radius.circular(Neon.rXl)),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: Container(
+            height: h,
+            decoration: BoxDecoration(
+              color: Neon.surface.withValues(alpha: 0.82),
+              border: Border(top: BorderSide(color: Neon.lineBright)),
+            ),
+            child: Column(
+              children: [
+                const SizedBox(height: 10),
+                Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    gradient: Neon.gVioletCyan,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                if (title != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                        Neon.s5, Neon.s4, Neon.s5, Neon.s1),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: GradientText(
+                            title,
+                            style:
+                                Theme.of(ctx).textTheme.titleLarge!,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded,
+                              color: Neon.textLo),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  const SizedBox(height: 6),
+                Expanded(child: child),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
 }
