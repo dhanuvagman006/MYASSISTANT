@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'features/assistant/assistant_screen.dart';
 import 'models/remote_config.dart';
 import 'screens/auth/auth_screen.dart';
 import 'screens/calls_screen.dart';
@@ -10,7 +11,6 @@ import 'screens/inbox_screen.dart';
 import 'screens/interview_screen.dart';
 import 'screens/lock_screen.dart';
 import 'screens/privacy_screen.dart';
-import 'screens/voice_home_screen.dart';
 import 'services/api_service.dart';
 import 'services/app_strings.dart';
 import 'services/app_lock.dart';
@@ -143,7 +143,10 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      const VoiceHomeScreen(),
+      // The redesigned assistant experience (features/assistant). The
+      // previous VoiceHomeScreen remains in the tree for reference and
+      // can be removed once the new screen is fully bedded in.
+      const AssistantScreen(),
       const TodayHub(),
       const CallsScreen(),
       const PrivacyScreen(),
