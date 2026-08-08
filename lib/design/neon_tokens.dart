@@ -53,22 +53,6 @@ class Neon {
     stops: [0.0, 0.4, 0.75, 1.0],
   );
 
-  // ── Luxe palette — champagne gold on deep black; quiet luxury ──────────
-  static const gold = Color(0xFFE7C778); // champagne gold
-  static const goldDeep = Color(0xFFB8933F); // antique gold
-  static const ivory = Color(0xFFF6EFE3); // warm off-white
-  static const luxeBg = Color(0xFF07080C); // near-black velvet
-
-  /// The luxe orb sweep — gold light circling a dark jewel.
-  static const gLuxe = SweepGradient(
-    colors: [goldDeep, gold, ivory, gold, goldDeep],
-    stops: [0.0, 0.30, 0.52, 0.74, 1.0],
-  );
-  static const gGoldText = LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-      colors: [ivory, gold, goldDeep]);
-
   // Spacing scale
   static const s1 = 4.0, s2 = 8.0, s3 = 12.0, s4 = 16.0;
   static const s5 = 20.0, s6 = 24.0, s7 = 32.0, s8 = 40.0;

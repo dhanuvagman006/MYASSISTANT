@@ -17,7 +17,7 @@ void main() {
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light,
-    systemNavigationBarColor: Neon.luxeBg,
+    systemNavigationBarColor: Neon.bg,
     systemNavigationBarIconBrightness: Brightness.light,
   ));
   // Style + language prefs load in parallel with the first frame; every
