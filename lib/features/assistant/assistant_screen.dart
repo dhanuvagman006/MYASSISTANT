@@ -6,33 +6,26 @@ import 'package:flutter/services.dart';
 import '../../design/neon_tokens.dart';
 import '../../design/neon_widgets.dart';
 import '../../models/remote_config.dart';
-import '../../screens/calls_screen.dart';
-import '../../screens/daily_screen.dart';
-import '../../screens/documents_screen.dart';
-import '../../screens/inbox_screen.dart';
 import '../../screens/interview_screen.dart';
-import '../../screens/privacy_screen.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_service.dart';
-import '../../widgets/style_settings_sheet.dart';
-import '../../widgets/update_button.dart';
 import 'state/assistant_engine.dart';
 import 'state/assistant_state.dart';
 import 'widgets/action_cards.dart';
 import 'widgets/assistant_hero_widget.dart';
 import 'widgets/bottom_input_bar.dart';
 
-/// THE app — a single-page liquid-glass AI agent experience.
+/// THE app — a single-page AI agent experience.
 ///
 /// Layout (top → bottom):
-///   • frosted glass bar: brand orb + Hari + hub / calls / profile / settings
-///   • animated hero orb (state-driven) + live status pill
+///   • animated hero orb (state-driven)
 ///   • live transcript + dynamic action cards
 ///   • quick-action glass chips (first launch) → tap to run
 ///   • frosted bottom bar: mic + text fallback
 ///
-/// There is NO other page. Daily/Inbox/Docs, Calls, Profile & Privacy and
-/// the first-run interview all open as frosted glass bottom sheets.
+/// The top bar (hub / calls / profile / settings) and its pages were removed.
+/// The status pill and error banner are commented out for now.
+/// The first-run interview still opens as a bottom sheet on first sign-in.
 class AssistantScreen extends StatefulWidget {
   const AssistantScreen({super.key});
 
@@ -90,17 +83,6 @@ class _AssistantScreenState extends State<AssistantScreen> {
     });
   }
 
-  // ── Glass sheets — the only "navigation" in the app ──────────────────────
-
-  void _openHub() =>
-      showGlassSheet(context, title: 'Your day', child: const _HubSheet());
-
-  void _openCalls() =>
-      showGlassSheet(context, title: 'Calls', child: const CallsScreen());
-
-  void _openProfile() =>
-      showGlassSheet(context, title: 'You', child: const PrivacyScreen());
-
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -112,10 +94,9 @@ class _AssistantScreenState extends State<AssistantScreen> {
             child: SafeArea(
               child: Column(
                 children: [
-                  _frostedBar(context),
                   if (_config.announcement != null && !_announcementDismissed)
                     _announcement(),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 16),
                   // Hero shrinks once a conversation is underway so the
                   // transcript/cards get the room.
                   AnimatedContainer(
@@ -132,13 +113,16 @@ class _AssistantScreenState extends State<AssistantScreen> {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  AssistantStatusPill(
-                    phase: engine.phase,
-                    connected: engine.connected,
-                    onCancel: engine.cancelAction,
-                  ),
+                  // Status pill ("Reconnecting…" / phase label) — hidden for now.
+                  // AssistantStatusPill(
+                  //   phase: engine.phase,
+                  //   connected: engine.connected,
+                  //   onCancel: engine.cancelAction,
+                  // ),
                   const SizedBox(height: 8),
-                  if (engine.errorMessage != null) _errorBanner(),
+                  // Error banner ("Could not reach the assistant service.") —
+                  // hidden for now.
+                  // if (engine.errorMessage != null) _errorBanner(),
                   Expanded(child: _feed()),
                   _frostedInput(),
                 ],
@@ -149,73 +133,6 @@ class _AssistantScreenState extends State<AssistantScreen> {
       },
     );
   }
-
-  /// Frosted glass top bar — brand + the three glass entry points.
-  Widget _frostedBar(BuildContext context) {
-    return ClipRRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(18, 8, 6, 8),
-          decoration: BoxDecoration(
-            color: Neon.bg.withValues(alpha: 0.35),
-            border: Border(bottom: BorderSide(color: Neon.line)),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 22,
-                height: 22,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: Neon.gOrb,
-                  boxShadow: Neon.glow(Neon.violet, blur: 10, alpha: 0.35),
-                ),
-                padding: const EdgeInsets.all(2),
-                child: const DecoratedBox(
-                  decoration:
-                      BoxDecoration(shape: BoxShape.circle, color: Neon.bg),
-                ),
-              ),
-              const SizedBox(width: 10),
-              GradientText('Hari',
-                  style: Theme.of(context).textTheme.titleLarge!),
-              const SizedBox(width: 8),
-              // Live status dot — online when the engine has a connection.
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: engine.connected ? Neon.success : Neon.textDim,
-                  boxShadow: engine.connected
-                      ? Neon.glow(Neon.success, blur: 6, alpha: 0.5)
-                      : null,
-                ),
-              ),
-              const Spacer(),
-              UpdateButton(config: _config),
-              _barIcon(Icons.dashboard_customize_rounded, 'Your day', _openHub),
-              _barIcon(Icons.call_outlined, 'Calls', _openCalls),
-              _barIcon(Icons.person_outline_rounded, 'You', _openProfile),
-              _barIcon(Icons.tune_rounded, 'Assistant settings',
-                  () => showStyleSettingsSheet(context)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _barIcon(IconData icon, String tip, VoidCallback onTap) => IconButton(
-        tooltip: tip,
-        visualDensity: VisualDensity.compact,
-        icon: Icon(icon, size: 21, color: Neon.textLo.withValues(alpha: 0.95)),
-        onPressed: () {
-          HapticFeedback.selectionClick();
-          onTap();
-        },
-      );
 
   Widget _announcement() => Padding(
         padding: const EdgeInsets.fromLTRB(Neon.s4, Neon.s2, Neon.s4, 0),
@@ -237,35 +154,36 @@ class _AssistantScreenState extends State<AssistantScreen> {
         ),
       );
 
-  Widget _errorBanner() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: Neon.error.withValues(alpha: 0.14),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Neon.error.withValues(alpha: 0.45)),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.error_outline_rounded,
-                color: Neon.error, size: 18),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(engine.errorMessage!,
-                  style: const TextStyle(color: Neon.textHi, fontSize: 13)),
-            ),
-            GestureDetector(
-              onTap: engine.dismissError,
-              child: const Icon(Icons.close_rounded,
-                  size: 18, color: Neon.textLo),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // Error banner — hidden for now. Re-enable in build() when needed.
+  // Widget _errorBanner() {
+  //   return Padding(
+  //     padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+  //     child: Container(
+  //       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+  //       decoration: BoxDecoration(
+  //         color: Neon.error.withValues(alpha: 0.14),
+  //         borderRadius: BorderRadius.circular(14),
+  //         border: Border.all(color: Neon.error.withValues(alpha: 0.45)),
+  //       ),
+  //       child: Row(
+  //         children: [
+  //           const Icon(Icons.error_outline_rounded,
+  //               color: Neon.error, size: 18),
+  //           const SizedBox(width: 8),
+  //           Expanded(
+  //             child: Text(engine.errorMessage!,
+  //                 style: const TextStyle(color: Neon.textHi, fontSize: 13)),
+  //           ),
+  //           GestureDetector(
+  //             onTap: engine.dismissError,
+  //             child: const Icon(Icons.close_rounded,
+  //                 size: 18, color: Neon.textLo),
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
 
   /// Transcript + all dynamic action cards, in conversational order.
   Widget _feed() {
@@ -468,40 +386,3 @@ class _PressScaleState extends State<_PressScale> {
   }
 }
 
-/// Daily / Inbox / Docs — the old "Today" tab, now living inside one sheet.
-class _HubSheet extends StatefulWidget {
-  const _HubSheet();
-
-  @override
-  State<_HubSheet> createState() => _HubSheetState();
-}
-
-class _HubSheetState extends State<_HubSheet> {
-  int _segment = 0;
-
-  @override
-  Widget build(BuildContext context) {
-    const pages = [DailyScreen(), InboxScreen(), DocumentsScreen()];
-    return Column(
-      children: [
-        Padding(
-          padding:
-              const EdgeInsets.symmetric(horizontal: Neon.s4, vertical: Neon.s2),
-          child: SegmentedButton<int>(
-            segments: const [
-              ButtonSegment(value: 0, label: Text('Daily')),
-              ButtonSegment(value: 1, label: Text('Inbox')),
-              ButtonSegment(value: 2, label: Text('Docs')),
-            ],
-            selected: {_segment},
-            onSelectionChanged: (s) {
-              HapticFeedback.selectionClick();
-              setState(() => _segment = s.first);
-            },
-          ),
-        ),
-        Expanded(child: pages[_segment]),
-      ],
-    );
-  }
-}
