@@ -46,13 +46,13 @@ class _AssistantHeroWidgetState extends State<AssistantHeroWidget>
   }
 
   Color get _accent => switch (widget.phase) {
-        AssistantPhase.listening => Neon.cyan,
+        AssistantPhase.listening => Neon.ivory,
         AssistantPhase.error => Neon.error,
         AssistantPhase.inCall ||
         AssistantPhase.dialing ||
         AssistantPhase.ringing =>
           Neon.success,
-        _ => Neon.violet,
+        _ => Neon.gold,
       };
 
   @override
@@ -108,21 +108,21 @@ class _AssistantHeroWidgetState extends State<AssistantHeroWidget>
                       ),
                     );
                   }),
-                // State ring
+                // State ring — a whisper-thin gold line, luxury not neon
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
-                  width: 172,
-                  height: 172,
+                  width: 176,
+                  height: 176,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
                       color: _accent.withValues(
-                          alpha: widget.phase == AssistantPhase.idle ? 0.25 : 0.7),
-                      width: 2.5,
+                          alpha: widget.phase == AssistantPhase.idle ? 0.35 : 0.75),
+                      width: 1.2,
                     ),
                   ),
                 ),
-                // The orb itself — slowly rotating tri-color neon sweep
+                // The orb itself — slowly rotating gold-light sweep
                 Transform.scale(
                   scale: breathe + level * 0.08,
                   child: Transform.rotate(
@@ -132,31 +132,31 @@ class _AssistantHeroWidgetState extends State<AssistantHeroWidget>
                       height: 148,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        gradient: Neon.gOrb,
+                        gradient: Neon.gLuxe,
                         boxShadow: [
                           BoxShadow(
-                            color: _accent.withValues(alpha: 0.40),
-                            blurRadius: 44,
-                            spreadRadius: 4,
+                            color: Neon.gold.withValues(alpha: 0.30),
+                            blurRadius: 48,
+                            spreadRadius: 2,
                           ),
                           BoxShadow(
-                            color: Neon.pink.withValues(alpha: 0.18),
-                            blurRadius: 70,
-                            spreadRadius: 10,
+                            color: Neon.goldDeep.withValues(alpha: 0.16),
+                            blurRadius: 80,
+                            spreadRadius: 12,
                           ),
                         ],
                       ),
                       child: Transform.rotate(
                         angle: -t * 2 * math.pi, // keep the face upright
                         child: Container(
-                          margin: const EdgeInsets.all(7),
+                          margin: const EdgeInsets.all(2.5),
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             gradient: RadialGradient(
                               center: const Alignment(-0.35, -0.45),
                               colors: [
-                                Colors.white.withValues(alpha: 0.16),
-                                Neon.bg.withValues(alpha: 0.86),
+                                Neon.ivory.withValues(alpha: 0.10),
+                                Neon.luxeBg.withValues(alpha: 0.94),
                               ],
                             ),
                           ),
@@ -250,7 +250,7 @@ class _LuxeSparklePainter extends CustomPainter {
     final shader = const LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [Neon.violet, Neon.cyan, Neon.pink],
+      colors: [Neon.ivory, Neon.gold, Neon.goldDeep],
     ).createShader(Rect.fromCircle(center: c, radius: mainR));
 
     // Halo glow behind the star.
