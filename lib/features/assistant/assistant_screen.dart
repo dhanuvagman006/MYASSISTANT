@@ -92,7 +92,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
       engine.pendingConfirmation != null;
 
   String get _firstName {
-    final n = AuthService.instance.user?.name.trim();
+    final n = AuthService.instance.user?.name?.trim();
     if (n == null || n.isEmpty) return '';
     return n.split(RegExp(r'\s+')).first;
   }
