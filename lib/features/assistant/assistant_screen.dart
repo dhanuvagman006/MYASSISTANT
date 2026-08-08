@@ -276,7 +276,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
 
     return ListView(
       controller: _scroll,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       children: [
         for (final t in engine.transcript) TranscriptBubble(entry: t),
         for (final a in engine.activities) ToolCard(activity: a),
@@ -355,40 +355,54 @@ class _AssistantScreenState extends State<AssistantScreen> {
               style: Theme.of(context).textTheme.headlineSmall!,
               gradient: Neon.gVioletPink,
             ),
-            const SizedBox(height: Neon.s2),
-            const Text(
+            const SizedBox(height: Neon.s3),
+            // Quiet, single-tone helper line — luxury UIs keep secondary
+            // text neutral so the orb + greeting stay the only color heroes.
+            Text(
               'Tap the orb, hold the mic, or try one of these',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Neon.textLo, fontSize: 13.5),
+              style: TextStyle(
+                color: Neon.textDim,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.2,
+              ),
             ),
-            const SizedBox(height: Neon.s5),
+            const SizedBox(height: Neon.s6),
             Wrap(
               alignment: WrapAlignment.center,
-              spacing: Neon.s2,
-              runSpacing: Neon.s2,
+              spacing: Neon.s3,
+              runSpacing: Neon.s3,
               children: [
                 for (final (icon, label, prompt) in actions)
-                  GestureDetector(
+                  _PressScale(
                     onTap: () {
                       HapticFeedback.selectionClick();
                       engine.sendText(prompt);
                     },
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 10),
+                          horizontal: 16, vertical: 12),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.05),
+                        color: Colors.white.withValues(alpha: 0.04),
                         borderRadius: BorderRadius.circular(Neon.rPill),
-                        border: Border.all(color: Neon.lineBright),
+                        border: Border.all(color: Neon.line),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(icon, size: 15, color: Neon.cyan),
-                          const SizedBox(width: 7),
+                          // Monochrome icons: one accent family on screen at
+                          // a time reads premium; four competing hues do not.
+                          Icon(icon,
+                              size: 15,
+                              color: Neon.textLo.withValues(alpha: 0.9)),
+                          const SizedBox(width: 8),
                           Text(label,
                               style: const TextStyle(
-                                  color: Neon.textHi, fontSize: 13.5)),
+                                  color: Neon.textHi,
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.1)),
                         ],
                       ),
                     ),
@@ -417,6 +431,38 @@ class _AssistantScreenState extends State<AssistantScreen> {
             onSendText: engine.sendText,
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Tactile press feedback — the micro-interaction that separates premium
+/// from generic: the chip settles 4% smaller under the finger, then springs
+/// back. Cheap UIs have no press state; luxury UIs always respond to touch.
+class _PressScale extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onTap;
+  const _PressScale({required this.child, required this.onTap});
+
+  @override
+  State<_PressScale> createState() => _PressScaleState();
+}
+
+class _PressScaleState extends State<_PressScale> {
+  bool _down = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _down = true),
+      onTapCancel: () => setState(() => _down = false),
+      onTapUp: (_) => setState(() => _down = false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _down ? 0.96 : 1.0,
+        duration: const Duration(milliseconds: 110),
+        curve: Curves.easeOut,
+        child: widget.child,
       ),
     );
   }
