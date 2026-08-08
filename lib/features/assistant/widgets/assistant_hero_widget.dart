@@ -163,12 +163,14 @@ class _AssistantHeroWidgetState extends State<AssistantHeroWidget>
                           child: Center(
                             child: AnimatedSwitcher(
                               duration: const Duration(milliseconds: 250),
-                              child: Icon(
-                                _icon,
-                                key: ValueKey(_icon),
-                                size: 44,
-                                color: Colors.white.withValues(alpha: 0.94),
-                              ),
+                              child: widget.phase == AssistantPhase.idle
+                                  ? _LuxeSparkle(t: t, key: const ValueKey('sparkle'))
+                                  : Icon(
+                                      _icon,
+                                      key: ValueKey(_icon),
+                                      size: 44,
+                                      color: Colors.white.withValues(alpha: 0.94),
+                                    ),
                             ),
                           ),
                         ),
@@ -199,8 +201,86 @@ class _AssistantHeroWidgetState extends State<AssistantHeroWidget>
           Icons.phone_in_talk_rounded,
         AssistantPhase.speaking => Icons.volume_up_rounded,
         AssistantPhase.error => Icons.error_outline_rounded,
-        _ => Icons.mic_none_rounded,
+        _ => Icons.mic_none_rounded, // non-idle fallback only; idle shows _LuxeSparkle
       };
+}
+
+/// ─────────────────────────────────────────────────────────────────────────
+///  _LuxeSparkle — the orb's idle face. A four-point diamond sparkle with a
+///  violet→cyan→pink shader, soft glow, and a tiny twinkling companion star.
+///  Cute, jewel-like, luxurious — replaces the old utilitarian mic glyph.
+///  Driven by the hero's existing controller (t ∈ 0..1), so no extra ticker.
+/// ─────────────────────────────────────────────────────────────────────────
+class _LuxeSparkle extends StatelessWidget {
+  final double t;
+  const _LuxeSparkle({super.key, required this.t});
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: const Size(56, 56),
+      painter: _LuxeSparklePainter(t),
+    );
+  }
+}
+
+class _LuxeSparklePainter extends CustomPainter {
+  final double t;
+  _LuxeSparklePainter(this.t);
+
+  /// Classic jewel sparkle: four points joined by inward-curving quadratics.
+  Path _star(Offset c, double r) {
+    final waist = r * 0.22; // how pinched the star's waist is
+    return Path()
+      ..moveTo(c.dx, c.dy - r)
+      ..quadraticBezierTo(c.dx + waist, c.dy - waist, c.dx + r, c.dy)
+      ..quadraticBezierTo(c.dx + waist, c.dy + waist, c.dx, c.dy + r)
+      ..quadraticBezierTo(c.dx - waist, c.dy + waist, c.dx - r, c.dy)
+      ..quadraticBezierTo(c.dx - waist, c.dy - waist, c.dx, c.dy - r)
+      ..close();
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = Offset(size.width / 2, size.height / 2);
+    // Gentle twinkle: main star breathes, companion twinkles off-beat.
+    final twinkle = 0.92 + 0.08 * math.sin(t * 2 * math.pi * 2);
+    final mainR = 22.0 * twinkle;
+
+    final shader = const LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Neon.violet, Neon.cyan, Neon.pink],
+    ).createShader(Rect.fromCircle(center: c, radius: mainR));
+
+    // Halo glow behind the star.
+    canvas.drawPath(
+      _star(c, mainR),
+      Paint()
+        ..shader = shader
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+    );
+    // The jewel itself.
+    canvas.drawPath(_star(c, mainR), Paint()..shader = shader);
+    // Crisp white core highlight — the "expensive" glint.
+    canvas.drawPath(
+      _star(c, mainR * 0.42),
+      Paint()..color = Colors.white.withValues(alpha: 0.95),
+    );
+
+    // Tiny companion sparkle, top-right, twinkling on its own rhythm.
+    final cTwinkle =
+        (0.5 + 0.5 * math.sin(t * 2 * math.pi * 3 + 1.3)).clamp(0.0, 1.0);
+    final cc = c + const Offset(17, -16);
+    final cr = 5.5 * (0.6 + 0.4 * cTwinkle);
+    canvas.drawPath(
+      _star(cc, cr),
+      Paint()..color = Colors.white.withValues(alpha: 0.35 + 0.55 * cTwinkle),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_LuxeSparklePainter old) => old.t != t;
 }
 
 /// Live status pill — always tells the user what the assistant is doing.
