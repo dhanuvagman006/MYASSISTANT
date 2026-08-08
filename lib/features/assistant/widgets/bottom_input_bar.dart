@@ -60,10 +60,10 @@ class _BottomInputBarState extends State<BottomInputBar> {
             Expanded(
               child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.07),
+                  color: Colors.white.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(26),
                   border:
-                      Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                      Border.all(color: Colors.white.withValues(alpha: 0.08)),
                 ),
                 child: TextField(
                   controller: _controller,
@@ -74,7 +74,8 @@ class _BottomInputBarState extends State<BottomInputBar> {
                   decoration: InputDecoration(
                     hintText: 'Type instead…',
                     hintStyle: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.4)),
+                        color: Colors.white.withValues(alpha: 0.32),
+                        fontWeight: FontWeight.w500),
                     border: InputBorder.none,
                     filled: false,
                     contentPadding: const EdgeInsets.symmetric(
@@ -91,8 +92,8 @@ class _BottomInputBarState extends State<BottomInputBar> {
               ),
             ),
             const SizedBox(width: 12),
-            // Big mic button
-            GestureDetector(
+            // Big mic button — the ONE action; press-scale + calm glow
+            _MicPressScale(
               onTap: widget.onMic,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 250),
@@ -105,9 +106,9 @@ class _BottomInputBarState extends State<BottomInputBar> {
                   boxShadow: [
                     BoxShadow(
                       color: (listening ? Neon.cyan : Neon.violet)
-                          .withValues(alpha: 0.45),
-                      blurRadius: 20,
-                      spreadRadius: 2,
+                          .withValues(alpha: 0.32),
+                      blurRadius: 24,
+                      spreadRadius: 0,
                     ),
                   ],
                 ),
@@ -120,6 +121,37 @@ class _BottomInputBarState extends State<BottomInputBar> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Tactile press feedback for the mic — settles under the finger and
+/// springs back; the touch response that reads premium.
+class _MicPressScale extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onTap;
+  const _MicPressScale({required this.child, required this.onTap});
+
+  @override
+  State<_MicPressScale> createState() => _MicPressScaleState();
+}
+
+class _MicPressScaleState extends State<_MicPressScale> {
+  bool _down = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _down = true),
+      onTapCancel: () => setState(() => _down = false),
+      onTapUp: (_) => setState(() => _down = false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _down ? 0.93 : 1.0,
+        duration: const Duration(milliseconds: 110),
+        curve: Curves.easeOut,
+        child: widget.child,
       ),
     );
   }

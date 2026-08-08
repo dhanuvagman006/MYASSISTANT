@@ -169,7 +169,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: Neon.gOrb,
-                  boxShadow: Neon.glow(Neon.violet, blur: 12, alpha: 0.5),
+                  boxShadow: Neon.glow(Neon.violet, blur: 10, alpha: 0.35),
                 ),
                 padding: const EdgeInsets.all(2),
                 child: const DecoratedBox(
@@ -189,7 +189,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
                   shape: BoxShape.circle,
                   color: engine.connected ? Neon.success : Neon.textDim,
                   boxShadow: engine.connected
-                      ? Neon.glow(Neon.success, blur: 8, alpha: 0.8)
+                      ? Neon.glow(Neon.success, blur: 6, alpha: 0.5)
                       : null,
                 ),
               ),
@@ -210,7 +210,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
   Widget _barIcon(IconData icon, String tip, VoidCallback onTap) => IconButton(
         tooltip: tip,
         visualDensity: VisualDensity.compact,
-        icon: Icon(icon, size: 22, color: Neon.textHi.withValues(alpha: 0.85)),
+        icon: Icon(icon, size: 21, color: Neon.textLo.withValues(alpha: 0.95)),
         onPressed: () {
           HapticFeedback.selectionClick();
           onTap();
