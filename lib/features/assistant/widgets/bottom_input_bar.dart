@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../theme/app_theme.dart';
+import '../../../design/neon_tokens.dart';
 import '../state/assistant_state.dart';
 
 /// Bottom bar: big mic button + always-available text fallback.
@@ -82,7 +82,7 @@ class _BottomInputBarState extends State<BottomInputBar> {
                     suffixIcon: _hasText
                         ? IconButton(
                             icon: const Icon(Icons.send_rounded,
-                                color: AppColors.peacockLight, size: 20),
+                                color: Neon.cyan, size: 20),
                             onPressed: _send,
                           )
                         : null,
@@ -100,21 +100,14 @@ class _BottomInputBarState extends State<BottomInputBar> {
                 height: 58,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: listening
-                        ? [AppColors.marigold, const Color(0xFFE08600)]
-                        : [AppColors.peacockLight, AppColors.peacockDeep],
-                  ),
+                  gradient:
+                      listening ? Neon.gCyanLime : Neon.gVioletPink,
                   boxShadow: [
                     BoxShadow(
-                      color: (listening
-                              ? AppColors.marigold
-                              : AppColors.peacockLight)
-                          .withValues(alpha: 0.4),
-                      blurRadius: 16,
-                      spreadRadius: 1,
+                      color: (listening ? Neon.cyan : Neon.violet)
+                          .withValues(alpha: 0.45),
+                      blurRadius: 20,
+                      spreadRadius: 2,
                     ),
                   ],
                 ),

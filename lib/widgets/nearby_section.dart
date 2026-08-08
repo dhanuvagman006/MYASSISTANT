@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../models/place.dart';
 import '../services/api_service.dart';
+import '../design/neon_tokens.dart';
 import '../theme/app_theme.dart';
 
 /// C3 — Nearby places: quick categories + free search, results with
@@ -200,9 +201,9 @@ class _ResultsSheetState extends State<_ResultsSheet> {
                     headers: ApiService.imageHeaders,
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => const ColoredBox(
-                        color: AppColors.mist,
+                        color: Neon.surfaceHigh,
                         child: Icon(Icons.storefront_rounded,
-                            color: AppColors.peacock)),
+                            color: Neon.cyan)),
                   ),
                 ),
               Expanded(

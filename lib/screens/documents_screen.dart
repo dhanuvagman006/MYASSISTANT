@@ -12,6 +12,7 @@ import '../models/vision_result.dart';
 import '../widgets/document_card.dart';
 import '../services/api_service.dart';
 import '../services/notification_service.dart';
+import '../design/neon_tokens.dart';
 import '../theme/app_theme.dart';
 
 /// Screen 04 — Group B: Camera, Photos and Documents.
@@ -548,13 +549,15 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         constraints: BoxConstraints(
             maxWidth: MediaQuery.of(context).size.width * 0.85),
         decoration: BoxDecoration(
-          color: isUser ? AppColors.peacock : AppColors.mist,
+          gradient: isUser ? Neon.gVioletPink : null,
+          color: isUser ? null : Neon.surfaceHigh,
           borderRadius: BorderRadius.circular(16),
+          border: isUser ? null : Border.all(color: Neon.line),
         ),
         child: SelectableText(
           m.content,
           style: TextStyle(
-              color: isUser ? Colors.white : AppColors.ink, height: 1.45),
+              color: isUser ? Colors.white : Neon.textHi, height: 1.45),
         ),
       ),
     );

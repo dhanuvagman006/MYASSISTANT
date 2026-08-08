@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'design/neon_tokens.dart';
+import 'design/neon_widgets.dart';
 import 'features/assistant/assistant_screen.dart';
 import 'models/remote_config.dart';
 import 'screens/auth/auth_screen.dart';
@@ -11,6 +13,7 @@ import 'screens/inbox_screen.dart';
 import 'screens/interview_screen.dart';
 import 'screens/lock_screen.dart';
 import 'screens/privacy_screen.dart';
+import 'screens/splash_screen.dart';
 import 'services/api_service.dart';
 import 'services/app_strings.dart';
 import 'services/app_lock.dart';
@@ -22,6 +25,13 @@ import 'widgets/update_button.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  // Neon V2 is dark-first: paint the system bars to match the backdrop.
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.light,
+    systemNavigationBarColor: Neon.bg,
+    systemNavigationBarIconBrightness: Brightness.light,
+  ));
   // Style + language prefs load in parallel with the first frame; every
   // later read is a plain field access (no disk on hot paths).
   StylePrefs.instance.load();
@@ -37,8 +47,9 @@ class MyAssistantApp extends StatelessWidget {
     return MaterialApp(
       title: 'MyAssistant',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
+      theme: AppTheme.dark(),
       darkTheme: AppTheme.dark(),
+      themeMode: ThemeMode.dark, // dark-first, always
       home: const AuthGate(),
     );
   }
@@ -88,11 +99,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    if (_restoring) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
+    if (_restoring) return const SplashScreen();
     final auth = AuthService.instance;
     if (!auth.isSignedIn) return const AuthScreen();
     // F1 — optional fingerprint/PIN wall in front of everything.
@@ -143,9 +150,6 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      // The redesigned assistant experience (features/assistant). The
-      // previous VoiceHomeScreen remains in the tree for reference and
-      // can be removed once the new screen is fully bedded in.
       const AssistantScreen(),
       const TodayHub(),
       const CallsScreen(),
@@ -153,30 +157,31 @@ class _HomeShellState extends State<HomeShell> {
     ];
 
     return Scaffold(
+      extendBody: true,
       appBar: AppBar(
         title: Row(
           children: [
-            // Brand mark — marigold ring around a peacock dot
+            // Brand mark — signature sweep-gradient orb ring
             Container(
-              width: 22,
-              height: 22,
+              width: 24,
+              height: 24,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: AppColors.marigold, width: 2.5),
+                gradient: Neon.gOrb,
+                boxShadow: Neon.glow(Neon.violet, blur: 12, alpha: 0.5),
               ),
-              child: Center(
-                child: Container(
-                  width: 9,
-                  height: 9,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.peacock,
-                  ),
-                ),
+              padding: const EdgeInsets.all(2),
+              child: const DecoratedBox(
+                decoration:
+                    BoxDecoration(shape: BoxShape.circle, color: Neon.bg),
               ),
             ),
             const SizedBox(width: 10),
-            const Text('MyAssistant'),
+            GradientText(
+              'MyAssistant',
+              style: Theme.of(context).textTheme.titleLarge!,
+              gradient: Neon.gVioletCyan,
+            ),
           ],
         ),
         actions: [
@@ -211,31 +216,32 @@ class _HomeShellState extends State<HomeShell> {
           const SizedBox(width: 4),
         ],
       ),
-      body: Column(
-        children: [
-          // Server-pushed announcement — appears with no app release
-          if (_config.announcement != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppColors.marigold.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(16),
+      body: NeonBackdrop(
+        child: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              // Server-pushed announcement — appears with no app release
+              if (_config.announcement != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                      Neon.s4, Neon.s1, Neon.s4, Neon.s2),
+                  child: GlassCard(
+                    tint: Neon.warning,
+                    child: Row(
+                      children: [
+                        const Icon(Icons.campaign_outlined,
+                            color: Neon.warning, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(child: Text(_config.announcement!)),
+                      ],
+                    ),
+                  ),
                 ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.campaign_outlined,
-                        color: Color(0xFFB27107), size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(child: Text(_config.announcement!)),
-                  ],
-                ),
-              ),
-            ),
-          Expanded(child: pages[_tab]),
-        ],
+              Expanded(child: pages[_tab]),
+            ],
+          ),
+        ),
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
@@ -245,9 +251,11 @@ class _HomeShellState extends State<HomeShell> {
         },
         destinations: [
           NavigationDestination(
-              icon: const Icon(Icons.adjust_rounded), label: S.t('tab_assistant')),
+              icon: const Icon(Icons.adjust_rounded),
+              label: S.t('tab_assistant')),
           NavigationDestination(
-              icon: const Icon(Icons.wb_sunny_outlined), label: S.t('tab_today')),
+              icon: const Icon(Icons.wb_sunny_outlined),
+              label: S.t('tab_today')),
           NavigationDestination(
               icon: const Icon(Icons.call_outlined), label: S.t('tab_calls')),
           NavigationDestination(
@@ -281,22 +289,9 @@ class _TodayHubState extends State<TodayHub> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding:
+              const EdgeInsets.symmetric(horizontal: Neon.s4, vertical: Neon.s2),
           child: SegmentedButton<int>(
-            style: SegmentedButton.styleFrom(
-              selectedBackgroundColor:
-                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.14),
-              selectedForegroundColor: Theme.of(context).colorScheme.primary,
-              foregroundColor: Theme.of(context)
-                  .colorScheme
-                  .onSurface
-                  .withValues(alpha: 0.7),
-              side: BorderSide(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.12)),
-            ),
             segments: const [
               ButtonSegment(value: 0, label: Text('Daily')),
               ButtonSegment(value: 1, label: Text('Inbox')),

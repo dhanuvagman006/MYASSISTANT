@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../../../theme/app_theme.dart';
+import '../../../design/neon_tokens.dart';
 import '../state/assistant_state.dart';
 
 /// The central animated assistant visual — a breathing gradient orb with a
@@ -46,13 +46,13 @@ class _AssistantHeroWidgetState extends State<AssistantHeroWidget>
   }
 
   Color get _accent => switch (widget.phase) {
-        AssistantPhase.listening => AppColors.marigold,
-        AssistantPhase.error => AppColors.danger,
+        AssistantPhase.listening => Neon.cyan,
+        AssistantPhase.error => Neon.error,
         AssistantPhase.inCall ||
         AssistantPhase.dialing ||
         AssistantPhase.ringing =>
-          const Color(0xFF35C48D),
-        _ => AppColors.peacockLight,
+          Neon.success,
+        _ => Neon.violet,
       };
 
   @override
@@ -122,39 +122,55 @@ class _AssistantHeroWidgetState extends State<AssistantHeroWidget>
                     ),
                   ),
                 ),
-                // The orb itself
+                // The orb itself — slowly rotating tri-color neon sweep
                 Transform.scale(
                   scale: breathe + level * 0.08,
-                  child: Container(
-                    width: 148,
-                    height: 148,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        center: const Alignment(-0.35, -0.4),
-                        colors: [
-                          _accent.withValues(alpha: 0.95),
-                          AppColors.peacock,
-                          AppColors.peacockDeep,
+                  child: Transform.rotate(
+                    angle: t * 2 * math.pi,
+                    child: Container(
+                      width: 148,
+                      height: 148,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: Neon.gOrb,
+                        boxShadow: [
+                          BoxShadow(
+                            color: _accent.withValues(alpha: 0.40),
+                            blurRadius: 44,
+                            spreadRadius: 4,
+                          ),
+                          BoxShadow(
+                            color: Neon.pink.withValues(alpha: 0.18),
+                            blurRadius: 70,
+                            spreadRadius: 10,
+                          ),
                         ],
-                        stops: const [0, 0.55, 1],
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _accent.withValues(alpha: 0.35),
-                          blurRadius: 40,
-                          spreadRadius: 4,
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 250),
-                        child: Icon(
-                          _icon,
-                          key: ValueKey(_icon),
-                          size: 44,
-                          color: Colors.white.withValues(alpha: 0.92),
+                      child: Transform.rotate(
+                        angle: -t * 2 * math.pi, // keep the face upright
+                        child: Container(
+                          margin: const EdgeInsets.all(7),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: RadialGradient(
+                              center: const Alignment(-0.35, -0.45),
+                              colors: [
+                                Colors.white.withValues(alpha: 0.16),
+                                Neon.bg.withValues(alpha: 0.86),
+                              ],
+                            ),
+                          ),
+                          child: Center(
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 250),
+                              child: Icon(
+                                _icon,
+                                key: ValueKey(_icon),
+                                size: 44,
+                                color: Colors.white.withValues(alpha: 0.94),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -202,10 +218,10 @@ class AssistantStatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = switch (phase) {
-      AssistantPhase.listening => AppColors.marigold,
-      AssistantPhase.error => AppColors.danger,
-      AssistantPhase.inCall => const Color(0xFF35C48D),
-      _ => AppColors.peacockLight,
+      AssistantPhase.listening => Neon.cyan,
+      AssistantPhase.error => Neon.error,
+      AssistantPhase.inCall => Neon.success,
+      _ => Neon.violet,
     };
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
@@ -271,9 +287,8 @@ class TranscriptBubble extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
         constraints: const BoxConstraints(maxWidth: 300),
         decoration: BoxDecoration(
-          color: isUser
-              ? AppColors.peacock.withValues(alpha: 0.85)
-              : Colors.white.withValues(alpha: 0.08),
+          gradient: isUser ? Neon.gVioletPink : null,
+          color: isUser ? null : Colors.white.withValues(alpha: 0.07),
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(18),
             topRight: const Radius.circular(18),

@@ -1,210 +1,233 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// Brand palette — MYASSISTANT UI Design V1.0
+import '../design/neon_tokens.dart';
+
+/// Legacy color names, remapped onto the Neon V2 palette.
+///
+/// Twenty files still reference these identifiers; keeping the names (with
+/// new values) re-skins every screen in one move. New code should import
+/// `design/neon_tokens.dart` and use [Neon] directly — treat these as
+/// deprecated aliases to be burned down screen by screen.
 class AppColors {
-  static const peacock = Color(0xFF0F6B66); // primary actions
-  static const peacockDeep = Color(0xFF0A4744); // emphasis
-  static const peacockLight = Color(0xFF1A9E96); // orb highlight
-  static const marigold = Color(0xFFF6A21E); // voice & alerts
-  static const ink = Color(0xFF0E1B1D); // text, dark surfaces
-  static const mist = Color(0xFFF2F6F5); // cards, surfaces
-  static const danger = Color(0xFFC62828);
+  static const peacock = Neon.violet; // primary actions
+  static const peacockDeep = Color(0xFF5B21B6); // pressed / emphasis violet
+  static const peacockLight = Neon.cyan; // orb + info highlights
+  static const marigold = Neon.warning; // voice & alerts (amber)
+  static const ink = Neon.bg; // app background
+  static const mist = Neon.textHi; // primary text on dark
+  static const danger = Neon.error;
 }
 
 class AppTheme {
-  /// Sora for headlines, Inter for everything else — per the design doc.
-  static TextTheme _text(TextTheme base, Color color) {
-    final inter = GoogleFonts.interTextTheme(base).apply(
-      bodyColor: color,
-      displayColor: color,
+  /// Space Grotesk for display/headlines (techy, geometric), Manrope for
+  /// body (clean, readable) — Neon Design System V2.0.
+  static TextTheme _text(TextTheme base) {
+    final body = GoogleFonts.manropeTextTheme(base).apply(
+      bodyColor: Neon.textHi,
+      displayColor: Neon.textHi,
     );
-    TextStyle sora(TextStyle? s) =>
-        GoogleFonts.sora(textStyle: s, fontWeight: FontWeight.w700);
-    return inter.copyWith(
-      displayLarge: sora(inter.displayLarge),
-      displayMedium: sora(inter.displayMedium),
-      displaySmall: sora(inter.displaySmall),
-      headlineLarge: sora(inter.headlineLarge),
-      headlineMedium: sora(inter.headlineMedium),
-      headlineSmall: sora(inter.headlineSmall),
-      titleLarge: sora(inter.titleLarge),
-    );
-  }
-
-  static ThemeData light() {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: AppColors.peacock,
-      primary: AppColors.peacock,
-      onPrimary: Colors.white,
-      secondary: AppColors.marigold,
-      onSecondary: AppColors.ink,
-      surface: Colors.white,
-      onSurface: AppColors.ink,
-      brightness: Brightness.light,
-    );
-
-    return ThemeData(
-      useMaterial3: true,
-      colorScheme: scheme,
-      scaffoldBackgroundColor: AppColors.mist,
-      textTheme: _text(ThemeData.light().textTheme, AppColors.ink),
-      appBarTheme: AppBarTheme(
-        backgroundColor: AppColors.mist,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        centerTitle: false,
-        titleTextStyle: GoogleFonts.sora(
-          fontSize: 22,
-          fontWeight: FontWeight.w700,
-          color: AppColors.ink,
-        ),
-        iconTheme: const IconThemeData(color: AppColors.ink),
-      ),
-      cardTheme: CardThemeData(
-        elevation: 0,
-        color: Colors.white,
-        margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      ),
-      filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          backgroundColor: AppColors.peacockDeep,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-          textStyle: GoogleFonts.inter(fontWeight: FontWeight.w600),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        ),
-      ),
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.peacockDeep,
-          side: BorderSide(color: AppColors.ink.withValues(alpha: 0.12)),
-          textStyle: GoogleFonts.inter(fontWeight: FontWeight.w500),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        ),
-      ),
-      chipTheme: ChipThemeData(
-        backgroundColor: Colors.white,
-        side: BorderSide(color: AppColors.ink.withValues(alpha: 0.10)),
-        labelStyle: GoogleFonts.inter(fontSize: 13, color: AppColors.ink),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      ),
-      navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: Colors.white,
-        indicatorColor: AppColors.peacock.withValues(alpha: 0.12),
-        iconTheme: WidgetStateProperty.resolveWith(
-          (states) => IconThemeData(
-            color: states.contains(WidgetState.selected)
-                ? AppColors.peacockDeep
-                : AppColors.ink.withValues(alpha: 0.55),
-          ),
-        ),
-        labelTextStyle: WidgetStateProperty.all(
-          GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w500),
-        ),
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: Colors.white,
-        hintStyle: GoogleFonts.inter(color: AppColors.ink.withValues(alpha: 0.4)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(28),
-          borderSide: BorderSide.none,
-        ),
-      ),
+    TextStyle display(TextStyle? s, {double? spacing}) => GoogleFonts.spaceGrotesk(
+        textStyle: s, fontWeight: FontWeight.w700, letterSpacing: spacing);
+    return body.copyWith(
+      displayLarge: display(body.displayLarge, spacing: -1),
+      displayMedium: display(body.displayMedium, spacing: -0.5),
+      displaySmall: display(body.displaySmall),
+      headlineLarge: display(body.headlineLarge),
+      headlineMedium: display(body.headlineMedium),
+      headlineSmall: display(body.headlineSmall),
+      titleLarge: display(body.titleLarge),
+      labelLarge: GoogleFonts.manrope(
+          textStyle: body.labelLarge, fontWeight: FontWeight.w600),
     );
   }
 
+  /// The one true theme — the app is dark-first by design.
   static ThemeData dark() {
-    const surface = Color(0xFF13282A); // card surfaces on Ink
-    const surfaceHigh = Color(0xFF1A3335);
     final scheme = ColorScheme.fromSeed(
-      seedColor: AppColors.peacock,
-      primary: AppColors.peacockLight,
-      onPrimary: Colors.white,
-      secondary: AppColors.marigold,
-      onSecondary: AppColors.ink,
-      surface: surface,
-      onSurface: AppColors.mist,
+      seedColor: Neon.violet,
       brightness: Brightness.dark,
+      primary: Neon.violet,
+      onPrimary: Colors.white,
+      secondary: Neon.cyan,
+      onSecondary: Neon.bg,
+      tertiary: Neon.pink,
+      surface: Neon.surface,
+      onSurface: Neon.textHi,
+      error: Neon.error,
     );
+
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
-      scaffoldBackgroundColor: AppColors.ink,
-      textTheme: _text(ThemeData.dark().textTheme, AppColors.mist),
+      scaffoldBackgroundColor: Neon.bg,
+      textTheme: _text(ThemeData.dark().textTheme),
+      splashFactory: InkSparkle.splashFactory,
       appBarTheme: AppBarTheme(
-        backgroundColor: AppColors.ink,
+        backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
-        titleTextStyle: GoogleFonts.sora(
-          fontSize: 22,
+        titleTextStyle: GoogleFonts.spaceGrotesk(
+          fontSize: 21,
           fontWeight: FontWeight.w700,
-          color: AppColors.mist,
+          color: Neon.textHi,
         ),
-        iconTheme: const IconThemeData(color: AppColors.mist),
+        iconTheme: const IconThemeData(color: Neon.textHi),
       ),
       cardTheme: CardThemeData(
         elevation: 0,
-        color: surface,
+        color: Neon.surface,
         margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(Neon.rLg),
+          side: BorderSide(color: Neon.line),
+        ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: AppColors.peacock,
+          backgroundColor: Neon.violet,
           foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-          textStyle: GoogleFonts.inter(fontWeight: FontWeight.w600),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 15),
+          textStyle: GoogleFonts.manrope(
+              fontWeight: FontWeight.w600, fontSize: 15.5),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(Neon.rPill)),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.mist,
-          side: BorderSide(color: AppColors.mist.withValues(alpha: 0.18)),
-          textStyle: GoogleFonts.inter(fontWeight: FontWeight.w500),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          foregroundColor: Neon.textHi,
+          side: BorderSide(color: Neon.cyan.withValues(alpha: 0.35)),
+          textStyle: GoogleFonts.manrope(fontWeight: FontWeight.w600),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(Neon.rPill)),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: Neon.cyan,
+          textStyle: GoogleFonts.manrope(fontWeight: FontWeight.w600),
         ),
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: surfaceHigh,
-        side: BorderSide(color: AppColors.mist.withValues(alpha: 0.10)),
-        labelStyle: GoogleFonts.inter(fontSize: 13, color: AppColors.mist),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        backgroundColor: Neon.surfaceHigh,
+        side: BorderSide(color: Neon.line),
+        labelStyle: GoogleFonts.manrope(fontSize: 13, color: Neon.textHi),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(Neon.rSm)),
       ),
+      dividerTheme: DividerThemeData(color: Neon.line, thickness: 1),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: const Color(0xFF0B1516),
-        indicatorColor: AppColors.peacockLight.withValues(alpha: 0.20),
+        backgroundColor: const Color(0xF20B0F1A),
+        height: 68,
+        indicatorColor: Neon.violet.withValues(alpha: 0.22),
+        indicatorShape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(Neon.rPill)),
         iconTheme: WidgetStateProperty.resolveWith(
           (states) => IconThemeData(
             color: states.contains(WidgetState.selected)
-                ? AppColors.peacockLight
-                : AppColors.mist.withValues(alpha: 0.55),
+                ? Neon.cyan
+                : Neon.textDim,
           ),
         ),
-        labelTextStyle: WidgetStateProperty.all(
-          GoogleFonts.inter(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w500,
-              color: AppColors.mist),
+        labelTextStyle: WidgetStateProperty.resolveWith(
+          (states) => GoogleFonts.manrope(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w600,
+            color: states.contains(WidgetState.selected)
+                ? Neon.textHi
+                : Neon.textDim,
+          ),
+        ),
+      ),
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: SegmentedButton.styleFrom(
+          selectedBackgroundColor: Neon.violet.withValues(alpha: 0.22),
+          selectedForegroundColor: Neon.cyan,
+          foregroundColor: Neon.textLo,
+          side: BorderSide(color: Neon.line),
+          textStyle: GoogleFonts.manrope(fontWeight: FontWeight.w600),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: surfaceHigh,
-        hintStyle:
-            GoogleFonts.inter(color: AppColors.mist.withValues(alpha: 0.4)),
+        fillColor: Neon.surfaceHigh,
+        hintStyle: GoogleFonts.manrope(color: Neon.textDim),
+        labelStyle: GoogleFonts.manrope(color: Neon.textLo),
+        prefixIconColor: Neon.textLo,
+        suffixIconColor: Neon.textLo,
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(28),
-          borderSide: BorderSide.none,
+          borderRadius: BorderRadius.circular(Neon.rMd),
+          borderSide: BorderSide(color: Neon.line),
         ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(Neon.rMd),
+          borderSide: BorderSide(color: Neon.line),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(Neon.rMd),
+          borderSide: const BorderSide(color: Neon.cyan, width: 1.6),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(Neon.rMd),
+          borderSide: const BorderSide(color: Neon.error),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: Neon.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(Neon.rXl),
+          side: BorderSide(color: Neon.lineBright),
+        ),
+        titleTextStyle: GoogleFonts.spaceGrotesk(
+            fontSize: 19, fontWeight: FontWeight.w700, color: Neon.textHi),
+        contentTextStyle:
+            GoogleFonts.manrope(fontSize: 14.5, color: Neon.textLo, height: 1.45),
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: Neon.surface,
+        modalBackgroundColor: Neon.surface,
+        showDragHandle: true,
+        dragHandleColor: Neon.textDim,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(Neon.rXl)),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: Neon.surfaceHigh,
+        contentTextStyle: GoogleFonts.manrope(color: Neon.textHi),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(Neon.rMd),
+          side: BorderSide(color: Neon.lineBright),
+        ),
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((s) =>
+            s.contains(WidgetState.selected) ? Colors.white : Neon.textDim),
+        trackColor: WidgetStateProperty.resolveWith((s) =>
+            s.contains(WidgetState.selected)
+                ? Neon.violet
+                : Neon.surfaceHigh),
+      ),
+      progressIndicatorTheme:
+          const ProgressIndicatorThemeData(color: Neon.cyan),
+      listTileTheme: ListTileThemeData(
+        iconColor: Neon.textLo,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(Neon.rMd)),
+      ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: Neon.violet,
+        foregroundColor: Colors.white,
       ),
     );
   }
+
+  /// Dark-first product: "light" simply returns the same neon dark theme so
+  /// no device setting can drop the app back into the retired light design.
+  static ThemeData light() => dark();
 }
