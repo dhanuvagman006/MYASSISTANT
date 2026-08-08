@@ -4,7 +4,8 @@ publish_to: 'none'
 version: 0.1.0+1
 
 environment:
-  sdk: '>=3.4.0 <4.0.0'
+  # Color.withValues() (used throughout lib/design) requires Dart 3.6 / Flutter 3.27+
+  sdk: '>=3.6.0 <4.0.0'
 
 dependencies:
   flutter:
